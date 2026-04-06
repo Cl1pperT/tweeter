@@ -1,0 +1,17 @@
+[Unit]
+Description=BirdMesh BirdNET-Pi to Meshtastic bridge
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=birder
+Group=birder
+WorkingDirectory=/opt/birdmesh
+EnvironmentFile=/etc/birdmesh.env
+ExecStart=/opt/birdmesh/.venv/bin/birdmesh run
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

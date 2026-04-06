@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "birdmesh"
+version = "0.1.0"
+description = "Lightweight BirdNET-Pi to Meshtastic bridge for Raspberry Pi Zero 2 W deployments."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["meshtastic>=2.4,<3"]
+
+[project.scripts]
+birdmesh = "birdmesh.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

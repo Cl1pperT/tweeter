@@ -1,0 +1,208 @@
+from __future__ import annotations
+
+import sqlite3
+import sys
+import tempfile
+import unittest
+from dataclasses import replace
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from types import SimpleNamespace
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from birdmesh.app import BirdMeshApp
+from birdmesh.birdnet import BirdNETDatabase
+from birdmesh.config import Config
+from birdmesh.meshtastic_client import MeshtasticClient
+from birdmesh.models import CommandMessage
+from birdmesh.state import AppState, StateStore
+
+
+SCHEMA = """
+CREATE TABLE detections (
+    Date TEXT,
+    Time TEXT,
+    Sci_Name TEXT,
+    Com_Name TEXT,
+    Confidence REAL,
+    Lat REAL,
+    Lon REAL,
+    Cutoff REAL,
+    Week INTEGER,
+    Sens REAL,
+    Overlap REAL,
+    File_Name TEXT
+)
+"""
+
+
+class FakeMeshClient:
+    def __init__(self) -> None:
+        self.interface = None
+        self.broadcasts: list[str] = []
+        self.direct_messages: list[tuple[int | str, str]] = []
+        self._commands: list[CommandMessage] = []
+
+    def connect(self) -> None:
+        self.interface = object()
+
+    def close(self) -> None:
+        self.interface = None
+
+    def send_broadcast(self, text: str) -> None:
+        self.broadcasts.append(text)
+
+    def send_direct(self, destination: int | str, text: str) -> None:
+        self.direct_messages.append((destination, text))
+
+    def drain_commands(self) -> list[CommandMessage]:
+        commands = list(self._commands)
+        self._commands.clear()
+        return commands
+
+
+class AppTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        temp_root = Path(self.temp_dir.name)
+        self.db_path = temp_root / "birds.db"
+        self.state_path = temp_root / "state.json"
+        connection = sqlite3.connect(self.db_path)
+        connection.execute(SCHEMA)
+        connection.commit()
+        connection.close()
+        self.config = Config(
+            birdnet_db_path=self.db_path,
+            meshtastic_host="127.0.0.1",
+            meshtastic_port=4403,
+            channel_name="Bird Mesh",
+            channel_index=None,
+            poll_seconds=15,
+            summary_minutes=15,
+            command_prefix="bird",
+            timezone_name="UTC",
+            log_level="INFO",
+            env_file=None,
+            state_path=self.state_path,
+        )
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def _insert_detection(self, when: datetime, sci_name: str, common_name: str, confidence: float) -> None:
+        connection = sqlite3.connect(self.db_path)
+        connection.execute(
+            """
+            INSERT INTO detections
+            (Date, Time, Sci_Name, Com_Name, Confidence, Lat, Lon, Cutoff, Week, Sens, Overlap, File_Name)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                when.strftime("%Y-%m-%d"),
+                when.strftime("%H:%M:%S"),
+                sci_name,
+                common_name,
+                confidence,
+                0,
+                0,
+                0,
+                14,
+                1,
+                0,
+                "clip.wav",
+            ),
+        )
+        connection.commit()
+        connection.close()
+
+    def test_run_once_sends_first_of_day_alerts_and_persists_cursor(self) -> None:
+        now = datetime.now(timezone.utc)
+        self._insert_detection(now - timedelta(minutes=2), "Turdus migratorius", "American Robin", 0.91)
+        self._insert_detection(now - timedelta(minutes=1), "Turdus migratorius", "American Robin", 0.88)
+        self._insert_detection(now - timedelta(seconds=30), "Cyanocitta stelleri", "Steller's Jay", 0.87)
+
+        mesh = FakeMeshClient()
+        app = BirdMeshApp(
+            self.config,
+            state_store=StateStore(self.state_path),
+            db=BirdNETDatabase(self.db_path, timezone.utc),
+            mesh=mesh,
+        )
+
+        app.run_once()
+        app.close()
+
+        self.assertEqual(len(mesh.broadcasts), 2)
+        self.assertEqual(mesh.broadcasts[0].startswith("BirdMesh"), True)
+
+        reloaded_mesh = FakeMeshClient()
+        reloaded = BirdMeshApp(
+            self.config,
+            state_store=StateStore(self.state_path),
+            db=BirdNETDatabase(self.db_path, timezone.utc),
+            mesh=reloaded_mesh,
+        )
+        reloaded.run_once()
+        reloaded.close()
+        self.assertEqual(reloaded_mesh.broadcasts, [])
+
+    def test_due_summary_is_sent_for_pending_repeats(self) -> None:
+        state = AppState(
+            last_rowid=3,
+            pending_summary_total=2,
+            pending_summary_species={"American Robin": {"count": 2, "max_confidence": 0.9}},
+            pending_window_started_at=(datetime.now(timezone.utc) - timedelta(minutes=16)).isoformat(),
+        )
+        StateStore(self.state_path).save(state)
+        mesh = FakeMeshClient()
+        app = BirdMeshApp(
+            self.config,
+            state_store=StateStore(self.state_path),
+            db=BirdNETDatabase(self.db_path, timezone.utc),
+            mesh=mesh,
+        )
+
+        app.run_once()
+        app.close()
+
+        self.assertEqual(len(mesh.broadcasts), 1)
+        self.assertIn("sum 2 det/1 spp/15m", mesh.broadcasts[0])
+
+    def test_status_command_replies_directly(self) -> None:
+        mesh = FakeMeshClient()
+        mesh._commands.append(CommandMessage(sender=1234, text="bird status"))
+        app = BirdMeshApp(
+            self.config,
+            state_store=StateStore(self.state_path),
+            db=BirdNETDatabase(self.db_path, timezone.utc),
+            mesh=mesh,
+        )
+
+        app.run_once()
+        app.close()
+
+        self.assertEqual(len(mesh.direct_messages), 1)
+        self.assertEqual(mesh.direct_messages[0][0], 1234)
+        self.assertIn("birdmesh ok", mesh.direct_messages[0][1])
+
+    def test_channel_resolution_uses_name_then_fallback_index(self) -> None:
+        client = MeshtasticClient(self.config)
+        client.interface = SimpleNamespace(
+            localNode=SimpleNamespace(
+                channels=[
+                    {"index": 0, "settings": {"name": "Primary"}},
+                    {"index": 2, "settings": {"name": "Bird Mesh"}},
+                ]
+            )
+        )
+        self.assertEqual(client._resolve_channel_index(), 2)
+
+        with_index = replace(self.config, channel_index=7)
+        direct_client = MeshtasticClient(with_index)
+        direct_client.interface = client.interface
+        self.assertEqual(direct_client._resolve_channel_index(), 7)
+
+
+if __name__ == "__main__":
+    unittest.main()
