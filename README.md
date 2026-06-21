@@ -1,6 +1,6 @@
 # BirdMesh
 
-BirdMesh is a lightweight Python daemon that reads new detections from an existing BirdNET-Pi SQLite database and forwards compact bird updates over Meshtastic TCP on the `Bird Mesh` channel.
+BirdMesh is a lightweight Python daemon that reads new detections from an existing BirdNET-Pi SQLite database and forwards compact bird updates through a serial- or TCP-connected Meshtastic radio on the `Bird Mesh` channel.
 
 It is designed for a Raspberry Pi Zero 2 W running on solar power:
 - One small process
@@ -18,10 +18,10 @@ It is designed for a Raspberry Pi Zero 2 W running on solar power:
 
 ## Install
 
-Clone the repo onto the Pi and install it into a venv:
+Clone the repo onto the Pi and install it into a virtual environment:
 
 ```bash
-git clone <your-repo-url> birdmesh
+git clone https://github.com/Cl1pperT/tweeter.git birdmesh
 cd birdmesh
 python3 -m venv .venv
 . .venv/bin/activate
@@ -33,13 +33,12 @@ pip install .
 
 BirdMesh reads config from environment variables or an optional `.env` file. Direct environment variables override file values.
 
-Example `.env`:
+Example `.env` for a Meshtastic radio connected over USB serial:
 
 ```dotenv
-BIRDMESH_MESHTASTIC_HOST=192.168.1.50
-BIRDMESH_MESHTASTIC_PORT=4403
+BIRDMESH_MESHTASTIC_DEVICE=/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0
 BIRDMESH_CHANNEL_NAME=Bird Mesh
-BIRDMESH_BIRDNET_DB_PATH=/home/birder/BirdNET-Pi/scripts/birds.db
+BIRDMESH_BIRDNET_DB_PATH=/home/puffin2/BirdNET-Pi/scripts/birds.db
 BIRDMESH_POLL_SECONDS=15
 BIRDMESH_SUMMARY_MINUTES=15
 BIRDMESH_COMMAND_PREFIX=bird
@@ -47,9 +46,17 @@ BIRDMESH_TIMEZONE=America/Denver
 BIRDMESH_LOG_LEVEL=INFO
 ```
 
+To use a radio over TCP instead, replace `BIRDMESH_MESHTASTIC_DEVICE` with:
+
+```dotenv
+BIRDMESH_MESHTASTIC_HOST=192.168.1.50
+BIRDMESH_MESHTASTIC_PORT=4403
+```
+
 Supported variables:
 - `BIRDMESH_BIRDNET_DB_PATH`
 - `BIRDMESH_MESHTASTIC_HOST`
+- `BIRDMESH_MESHTASTIC_DEVICE`
 - `BIRDMESH_MESHTASTIC_PORT`
 - `BIRDMESH_CHANNEL_NAME`
 - `BIRDMESH_CHANNEL_INDEX`
@@ -60,7 +67,9 @@ Supported variables:
 - `BIRDMESH_LOG_LEVEL`
 
 Notes:
-- `BIRDMESH_MESHTASTIC_HOST` is required.
+- Set exactly one of `BIRDMESH_MESHTASTIC_HOST` or `BIRDMESH_MESHTASTIC_DEVICE`.
+- `BIRDMESH_MESHTASTIC_PORT` defaults to `4403` and is only used for TCP connections.
+- Prefer the stable `/dev/serial/by-id/...` path for USB radios; find it with `ls -l /dev/serial/by-id/`.
 - `BIRDMESH_CHANNEL_INDEX` is optional fallback if channel lookup by name fails.
 - If `BIRDMESH_TIMEZONE` is omitted, BirdMesh uses the Pi’s local timezone.
 
@@ -86,20 +95,32 @@ birdmesh --env-file /path/to/birdmesh.env run
 
 ## systemd
 
-A service template is included at [systemd/birdmesh.service](/Users/cliptaylor/Desktop/Programs/tweeter/systemd/birdmesh.service).
+A service template is included at [`systemd/birdmesh.service`](systemd/birdmesh.service). It runs as the `puffin2` user and includes membership in the `dialout` group for USB serial access.
 
 Typical deployment:
 
-1. Copy the repo to `/opt/birdmesh`
-2. Install into a venv under `/opt/birdmesh/.venv`
-3. Copy `systemd/birdmesh.service` to `/etc/systemd/system/birdmesh.service`
-4. Create `/etc/birdmesh.env`
-5. Enable and start the service:
+```bash
+sudo cp -a . /opt/birdmesh
+cd /opt/birdmesh
+sudo -u puffin2 python3 -m venv .venv
+sudo -u puffin2 .venv/bin/pip install .
+sudo cp systemd/birdmesh.service /etc/systemd/system/birdmesh.service
+sudo install -o root -g root -m 600 /dev/null /etc/birdmesh.env
+sudoedit /etc/birdmesh.env
+```
+
+After adding the configuration values described above, enable and start the service:
 
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable --now birdmesh.service
 sudo systemctl status birdmesh.service
+```
+
+Follow its logs with:
+
+```bash
+sudo journalctl -u birdmesh.service -f
 ```
 
 ## Mesh Behavior

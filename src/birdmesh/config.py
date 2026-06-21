@@ -50,7 +50,7 @@ def _parse_int(name: str, value: str) -> int:
 @dataclass(frozen=True, slots=True)
 class Config:
     birdnet_db_path: Path
-    meshtastic_host: str
+    meshtastic_host: str | None
     meshtastic_port: int
     channel_name: str
     channel_index: int | None
@@ -61,6 +61,7 @@ class Config:
     log_level: str
     env_file: Path | None
     state_path: Path
+    meshtastic_device: str | None = None
 
     @property
     def summary_interval_seconds(self) -> int:
@@ -74,8 +75,11 @@ def load_config(env_file: str | None = None) -> Config:
     env = dict(os.environ)
 
     meshtastic_host = _get_value(env, file_values, "BIRDMESH_MESHTASTIC_HOST")
-    if not meshtastic_host:
-        raise ValueError("BIRDMESH_MESHTASTIC_HOST is required")
+    meshtastic_device = _get_value(env, file_values, "BIRDMESH_MESHTASTIC_DEVICE")
+    if bool(meshtastic_host) == bool(meshtastic_device):
+        raise ValueError(
+            "Set exactly one of BIRDMESH_MESHTASTIC_HOST or BIRDMESH_MESHTASTIC_DEVICE"
+        )
 
     timezone_value = _get_value(env, file_values, "BIRDMESH_TIMEZONE")
     if timezone_value:
@@ -97,6 +101,7 @@ def load_config(env_file: str | None = None) -> Config:
             "BIRDMESH_MESHTASTIC_PORT",
             _get_value(env, file_values, "BIRDMESH_MESHTASTIC_PORT", str(DEFAULT_MESHTASTIC_PORT)) or str(DEFAULT_MESHTASTIC_PORT),
         ),
+        meshtastic_device=meshtastic_device,
         channel_name=_get_value(env, file_values, "BIRDMESH_CHANNEL_NAME", DEFAULT_CHANNEL_NAME) or DEFAULT_CHANNEL_NAME,
         channel_index=channel_index,
         poll_seconds=_parse_int(

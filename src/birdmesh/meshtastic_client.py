@@ -22,14 +22,20 @@ class MeshtasticClient:
     def connect(self) -> None:
         if self.interface is not None:
             return
-        from meshtastic.tcp_interface import TCPInterface
         from pubsub import pub
 
         self._pub = pub
-        self.interface = TCPInterface(
-            self.config.meshtastic_host,
-            portNumber=self.config.meshtastic_port,
-        )
+        if self.config.meshtastic_device:
+            from meshtastic.serial_interface import SerialInterface
+
+            self.interface = SerialInterface(devPath=self.config.meshtastic_device)
+        else:
+            from meshtastic.tcp_interface import TCPInterface
+
+            self.interface = TCPInterface(
+                self.config.meshtastic_host,
+                portNumber=self.config.meshtastic_port,
+            )
         self.channel_index = self._resolve_channel_index()
         pub.subscribe(self._on_receive_text, "meshtastic.receive.text")
 

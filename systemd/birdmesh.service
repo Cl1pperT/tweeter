@@ -5,8 +5,9 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=birder
-Group=birder
+User=puffin2
+Group=puffin2
+SupplementaryGroups=dialout
 WorkingDirectory=/opt/birdmesh
 EnvironmentFile=/etc/birdmesh.env
 ExecStart=/opt/birdmesh/.venv/bin/birdmesh run
