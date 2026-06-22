@@ -16,6 +16,10 @@ from .timeutil import resolve_tzinfo
 LOGGER = logging.getLogger(__name__)
 
 
+class ConnectivityCheckError(RuntimeError):
+    """Raised when an explicit connectivity check cannot access the radio."""
+
+
 class BirdMeshApp:
     def __init__(
         self,
@@ -33,8 +37,21 @@ class BirdMeshApp:
 
     def check(self) -> None:
         self.db.check()
-        self.mesh.connect()
-        self.mesh.close()
+        try:
+            self.mesh.connect()
+        except Exception as exc:
+            if self.config.meshtastic_device:
+                raise ConnectivityCheckError(
+                    f"Unable to open Meshtastic serial device {self.config.meshtastic_device!r}. "
+                    "If birdmesh.service is running, it owns the serial port. Run "
+                    "`sudo systemctl stop birdmesh.service`, retry the check, then run "
+                    "`sudo systemctl restart birdmesh.service`. For updates, use "
+                    "`sudo ./scripts/update.sh`, which always restarts the service. "
+                    f"Original error: {exc}"
+                ) from exc
+            raise
+        finally:
+            self.mesh.close()
 
     def run_once(self) -> None:
         self.mesh.connect()

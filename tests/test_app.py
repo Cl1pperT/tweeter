@@ -11,7 +11,7 @@ from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from birdmesh.app import BirdMeshApp
+from birdmesh.app import BirdMeshApp, ConnectivityCheckError
 from birdmesh.birdnet import BirdNETDatabase
 from birdmesh.config import Config
 from birdmesh.meshtastic_client import MeshtasticClient
@@ -60,6 +60,11 @@ class FakeMeshClient:
         commands = list(self._commands)
         self._commands.clear()
         return commands
+
+
+class FailingMeshClient(FakeMeshClient):
+    def connect(self) -> None:
+        raise OSError("device or resource busy")
 
 
 class AppTests(unittest.TestCase):
@@ -231,13 +236,47 @@ class AppTests(unittest.TestCase):
         client = MeshtasticClient(self.config)
         interface = SimpleNamespace(localNode=SimpleNamespace(nodeNum=99))
         client.interface = interface
+        client.channel_index = 2
 
         mixed_case_commands = ("wHo'S HeRe?", "BIRDS TODAY?", "BiRd HeLp", "BIRD STATUS")
         for index, text in enumerate(mixed_case_commands, start=1):
-            client._on_receive_text({"from": index, "decoded": {"text": text}}, interface)
+            client._on_receive_text({"from": index, "channel": 2, "decoded": {"text": text}}, interface)
 
         commands = client.drain_commands()
         self.assertEqual([command.text for command in commands], list(mixed_case_commands))
+
+    def test_commands_are_filtered_to_configured_channel(self) -> None:
+        client = MeshtasticClient(self.config)
+        interface = SimpleNamespace(localNode=SimpleNamespace(nodeNum=99))
+        client.interface = interface
+        client.channel_index = 2
+
+        client._on_receive_text({"from": 1, "channel": 1, "decoded": {"text": "bird status"}}, interface)
+        client._on_receive_text({"from": 2, "decoded": {"text": "bird status"}}, interface)
+        client._on_receive_text({"from": 3, "channel": 2, "decoded": {"text": "bird status"}}, interface)
+
+        commands = client.drain_commands()
+        self.assertEqual([(command.sender, command.text) for command in commands], [(3, "bird status")])
+
+    def test_serial_check_explains_service_port_conflict(self) -> None:
+        config = replace(
+            self.config,
+            meshtastic_host=None,
+            meshtastic_device="/dev/ttyUSB0",
+        )
+        app = BirdMeshApp(
+            config,
+            state_store=StateStore(self.state_path),
+            db=BirdNETDatabase(self.db_path, timezone.utc),
+            mesh=FailingMeshClient(),
+        )
+
+        with self.assertRaises(ConnectivityCheckError) as raised:
+            app.check()
+
+        self.assertIn("owns the serial port", str(raised.exception))
+        self.assertIn("sudo systemctl stop birdmesh.service", str(raised.exception))
+        self.assertIn("sudo systemctl restart birdmesh.service", str(raised.exception))
 
     def test_channel_resolution_uses_name_then_fallback_index(self) -> None:
         client = MeshtasticClient(self.config)

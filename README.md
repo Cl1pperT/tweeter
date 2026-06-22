@@ -81,6 +81,19 @@ Validate config, DB access, and Meshtastic connectivity:
 birdmesh --env-file /path/to/birdmesh.env check
 ```
 
+A USB serial radio can only be opened by one process at a time. If BirdMesh is
+already running as a service, stop it before a manual check and restart it when
+the check finishes:
+
+```bash
+sudo systemctl stop birdmesh.service
+sudo /opt/birdmesh/.venv/bin/birdmesh --env-file /etc/birdmesh.env check
+sudo systemctl restart birdmesh.service
+```
+
+For software updates, use the safe update script below instead. It guarantees
+that a stopped service is restarted even when installation or validation fails.
+
 Run a single cycle:
 
 ```bash
@@ -123,15 +136,37 @@ Follow its logs with:
 sudo journalctl -u birdmesh.service -f
 ```
 
+## Safe Updates
+
+After copying or pulling updated repository files into `/opt/birdmesh`, run:
+
+```bash
+cd /opt/birdmesh
+sudo ./scripts/update.sh
+```
+
+The script:
+
+1. Stops `birdmesh.service` so it releases the serial port.
+2. Reinstalls the local package into `/opt/birdmesh/.venv` as the service user.
+3. Runs `birdmesh check` against `/etc/birdmesh.env` while the service is stopped.
+4. Restarts the service on every exit path, including a failed validation.
+
+The script returns a nonzero status if installation or validation fails, even
+when the service restarts successfully. Its defaults can be overridden with
+`BIRDMESH_SERVICE_NAME`, `BIRDMESH_SERVICE_USER`, `BIRDMESH_ENV_FILE`,
+`BIRDMESH_PROJECT_ROOT`, and `BIRDMESH_VENV`.
+
 ## Mesh Behavior
 
 - Alert format: `🐦 Look who's here: House Finch! (92%)`
 - Summary format: `🎶 More bird visits: House Finch ×5, Blue Jay ×3`
-- `who's here?` replies with the most recently heard bird and how many minutes ago it visited
-- `birds today?` shares today's visit and species counts
+- `who's here?`, `whos here?`, `who is here?`, `bird who's here?`, or `bird who?` replies with the most recently heard bird and how many minutes ago it visited
+- `birds today?`, `what have you seen?`, or `bird today?` shares today's visit and species counts
 - `bird status` confirms BirdMesh is listening
-- `bird help` lists the available questions
-- Replies are sent directly back to the requesting node
+- `bird help` or `what can I ask?` lists the available questions
+- Commands are case-insensitive and are accepted only on the configured BirdMesh channel
+- Replies are always sent directly back to the requesting node
 
 Routine bird broadcasts are sent with `wantAck=False` to keep airtime and power use low.
 
@@ -147,7 +182,7 @@ That file keeps:
 - Last processed BirdNET `rowid`
 - First-of-day species already alerted
 - Pending summary aggregation
-- Daily counters used in status replies
+- Daily counters used in `birds today?` replies
 
 ## Tests
 

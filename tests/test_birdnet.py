@@ -62,6 +62,22 @@ class BirdNETDatabaseTests(unittest.TestCase):
         self.assertEqual(detections[0].scientific_name, "Turdus migratorius")
         self.assertEqual(detections[0].rowid, 1)
 
+    def test_reader_explicitly_closes_connection(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_path = Path(temp_dir) / "birds.db"
+            setup = sqlite3.connect(db_path)
+            setup.execute(SCHEMA)
+            setup.commit()
+            setup.close()
+            connection = sqlite3.connect(db_path)
+            reader = BirdNETDatabase(db_path, tzinfo=None)
+            reader._connect = lambda: connection
+
+            reader.check()
+
+            with self.assertRaises(sqlite3.ProgrammingError):
+                connection.execute("SELECT 1")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -109,6 +109,8 @@ class MeshtasticClient:
     def _on_receive_text(self, packet, interface) -> None:
         if self.interface is None or interface is not self.interface:
             return
+        if not self._is_configured_channel(packet):
+            return
         text = self._extract_text(packet)
         if not text:
             return
@@ -121,6 +123,14 @@ class MeshtasticClient:
             LOGGER.debug("Ignoring command packet without sender: %s", packet)
             return
         self._commands.put(CommandMessage(sender=sender, text=text.strip()))
+
+    def _is_configured_channel(self, packet: dict[str, Any]) -> bool:
+        if self.channel_index is None:
+            return False
+        try:
+            return int(packet["channel"]) == self.channel_index
+        except (KeyError, TypeError, ValueError):
+            return False
 
     def _is_from_self(self, packet: dict[str, Any]) -> bool:
         local_num = getattr(getattr(self.interface, "localNode", None), "nodeNum", None)

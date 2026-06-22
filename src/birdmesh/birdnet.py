@@ -22,11 +22,15 @@ class BirdNETDatabase:
         return sqlite3.connect(uri, uri=True)
 
     def check(self) -> None:
-        with self._connect() as connection:
+        connection = self._connect()
+        try:
             connection.execute("SELECT rowid FROM detections ORDER BY rowid DESC LIMIT 1").fetchone()
+        finally:
+            connection.close()
 
     def fetch_new_detections(self, last_rowid: int) -> list[Detection]:
-        with self._connect() as connection:
+        connection = self._connect()
+        try:
             connection.row_factory = sqlite3.Row
             rows = connection.execute(
                 """
@@ -44,10 +48,13 @@ class BirdNETDatabase:
                 """,
                 (last_rowid,),
             ).fetchall()
+        finally:
+            connection.close()
         return list(self._parse_rows(rows))
 
     def fetch_latest_detection(self) -> Detection | None:
-        with self._connect() as connection:
+        connection = self._connect()
+        try:
             connection.row_factory = sqlite3.Row
             rows = connection.execute(
                 """
@@ -64,6 +71,8 @@ class BirdNETDatabase:
                 LIMIT 10
                 """
             ).fetchall()
+        finally:
+            connection.close()
         return next(iter(self._parse_rows(rows)), None)
 
     def _parse_rows(self, rows: Iterable[sqlite3.Row]) -> Iterable[Detection]:

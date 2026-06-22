@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 
-def command_kind(text: str, command_prefix: str) -> str | None:
-    normalized = " ".join(text.strip().lower().replace("’", "'").split()).rstrip("?!.")
+def supported_commands(command_prefix: str) -> dict[str, str]:
     prefix = command_prefix.strip().lower()
-
-    commands = {
+    return {
         "who's here": "last_seen",
         "whos here": "last_seen",
         "who is here": "last_seen",
@@ -18,4 +16,8 @@ def command_kind(text: str, command_prefix: str) -> str | None:
         f"{prefix} help": "help",
         "what can i ask": "help",
     }
-    return commands.get(normalized)
+
+
+def command_kind(text: str, command_prefix: str) -> str | None:
+    normalized = " ".join(text.strip().lower().replace("’", "'").split()).rstrip("?!.")
+    return supported_commands(command_prefix).get(normalized)

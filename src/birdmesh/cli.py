@@ -4,7 +4,7 @@ import argparse
 import logging
 import sys
 
-from .app import BirdMeshApp
+from .app import BirdMeshApp, ConnectivityCheckError
 from .config import load_config
 
 
@@ -48,6 +48,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     except KeyboardInterrupt:
         return 130
+    except ConnectivityCheckError as exc:
+        logging.getLogger(__name__).error("BirdMesh check failed: %s", exc)
+        return 1
     except Exception as exc:  # noqa: BLE001 - top-level CLI should exit non-zero on fatal error
         logging.getLogger(__name__).exception("BirdMesh failed: %s", exc)
         return 1
