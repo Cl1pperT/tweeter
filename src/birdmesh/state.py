@@ -18,6 +18,7 @@ def _default_daily_counter() -> dict[str, int | list[str]]:
 class AppState:
     last_rowid: int = 0
     last_detection_at: str | None = None
+    last_detection_name: str | None = None
     last_summary_at: str | None = None
     pending_window_started_at: str | None = None
     pending_summary_total: int = 0
@@ -49,6 +50,7 @@ class AppState:
                 self.pending_window_started_at = detection.observed_at.isoformat()
         self.last_rowid = max(self.last_rowid, detection.rowid)
         self.last_detection_at = detection.observed_at.isoformat()
+        self.last_detection_name = detection.common_name
 
     def mark_summary_sent(self, now: datetime) -> None:
         today = now.date().isoformat()
@@ -82,6 +84,7 @@ class AppState:
         return {
             "last_rowid": self.last_rowid,
             "last_detection_at": self.last_detection_at,
+            "last_detection_name": self.last_detection_name,
             "last_summary_at": self.last_summary_at,
             "pending_window_started_at": self.pending_window_started_at,
             "pending_summary_total": self.pending_summary_total,
@@ -95,6 +98,7 @@ class AppState:
         return cls(
             last_rowid=int(payload.get("last_rowid", 0)),
             last_detection_at=payload.get("last_detection_at") or None,
+            last_detection_name=payload.get("last_detection_name") or None,
             last_summary_at=payload.get("last_summary_at") or None,
             pending_window_started_at=payload.get("pending_window_started_at") or None,
             pending_summary_total=int(payload.get("pending_summary_total", 0)),

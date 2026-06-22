@@ -134,7 +134,7 @@ class AppTests(unittest.TestCase):
         app.close()
 
         self.assertEqual(len(mesh.broadcasts), 2)
-        self.assertEqual(mesh.broadcasts[0].startswith("BirdMesh"), True)
+        self.assertEqual(mesh.broadcasts[0], "🐦 Look who's here: American Robin! (91%)")
 
         reloaded_mesh = FakeMeshClient()
         reloaded = BirdMeshApp(
@@ -167,7 +167,7 @@ class AppTests(unittest.TestCase):
         app.close()
 
         self.assertEqual(len(mesh.broadcasts), 1)
-        self.assertIn("sum 2 det/1 spp/15m", mesh.broadcasts[0])
+        self.assertEqual(mesh.broadcasts[0], "🎶 More bird visits: American Robin ×2")
 
     def test_status_command_replies_directly(self) -> None:
         mesh = FakeMeshClient()
@@ -184,7 +184,59 @@ class AppTests(unittest.TestCase):
 
         self.assertEqual(len(mesh.direct_messages), 1)
         self.assertEqual(mesh.direct_messages[0][0], 1234)
-        self.assertIn("birdmesh ok", mesh.direct_messages[0][1])
+        self.assertEqual(mesh.direct_messages[0][1], "🐦 BirdMesh is listening and ready!")
+
+    def test_whos_here_replies_with_latest_bird_and_elapsed_minutes(self) -> None:
+        self._insert_detection(
+            datetime.now(timezone.utc) - timedelta(minutes=5),
+            "Haemorhous mexicanus",
+            "House Finch",
+            0.92,
+        )
+        mesh = FakeMeshClient()
+        mesh._commands.append(CommandMessage(sender=1234, text="Who's here?"))
+        app = BirdMeshApp(
+            self.config,
+            state_store=StateStore(self.state_path),
+            db=BirdNETDatabase(self.db_path, timezone.utc),
+            mesh=mesh,
+        )
+
+        app.run_once()
+        app.close()
+
+        self.assertEqual(mesh.direct_messages, [(1234, "🐦 House Finch stopped by 5 minutes ago!")])
+        reloaded = StateStore(self.state_path).load()
+        self.assertEqual(reloaded.last_detection_name, "House Finch")
+
+    def test_whos_here_restores_latest_bird_for_existing_state(self) -> None:
+        observed_at = datetime.now(timezone.utc) - timedelta(minutes=3)
+        self._insert_detection(observed_at, "Turdus migratorius", "American Robin", 0.91)
+        StateStore(self.state_path).save(AppState(last_rowid=1, last_detection_at=observed_at.isoformat()))
+        mesh = FakeMeshClient()
+        mesh._commands.append(CommandMessage(sender=1234, text="who's here?"))
+        app = BirdMeshApp(
+            self.config,
+            state_store=StateStore(self.state_path),
+            db=BirdNETDatabase(self.db_path, timezone.utc),
+            mesh=mesh,
+        )
+
+        app.run_once()
+        app.close()
+
+        self.assertEqual(mesh.direct_messages, [(1234, "🐦 American Robin stopped by 3 minutes ago!")])
+
+    def test_interactive_commands_are_recognized_from_mesh_text(self) -> None:
+        client = MeshtasticClient(self.config)
+        interface = SimpleNamespace(localNode=SimpleNamespace(nodeNum=99))
+        client.interface = interface
+
+        for index, text in enumerate(("Who's here?", "Birds today?", "bird help"), start=1):
+            client._on_receive_text({"from": index, "decoded": {"text": text}}, interface)
+
+        commands = client.drain_commands()
+        self.assertEqual([command.text for command in commands], ["Who's here?", "Birds today?", "bird help"])
 
     def test_channel_resolution_uses_name_then_fallback_index(self) -> None:
         client = MeshtasticClient(self.config)

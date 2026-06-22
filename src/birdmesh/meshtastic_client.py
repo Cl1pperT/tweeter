@@ -4,6 +4,7 @@ import logging
 import queue
 from typing import Any
 
+from .commands import command_kind
 from .config import Config
 from .models import CommandMessage
 
@@ -113,7 +114,7 @@ class MeshtasticClient:
             return
         if self._is_from_self(packet):
             return
-        if text.strip().lower() != f"{self.config.command_prefix.lower()} status":
+        if command_kind(text, self.config.command_prefix) is None:
             return
         sender = packet.get("fromId") or packet.get("from")
         if sender is None:

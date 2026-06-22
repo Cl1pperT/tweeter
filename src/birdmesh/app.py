@@ -5,8 +5,9 @@ import time
 from datetime import datetime
 
 from .birdnet import BirdNETDatabase
+from .commands import command_kind
 from .config import Config
-from .formatting import format_alert, format_status, format_summary
+from .formatting import format_alert, format_help, format_last_seen, format_status, format_summary, format_today
 from .meshtastic_client import MeshtasticClient
 from .state import AppState, StateStore
 from .timeutil import resolve_tzinfo
@@ -85,16 +86,28 @@ class BirdMeshApp:
 
     def _handle_commands(self) -> None:
         now = datetime.now(self.tzinfo)
-        db_ok = self._db_healthy()
-        mesh_ok = self.mesh.interface is not None
-        response = format_status(self.state, now, db_ok=db_ok, mesh_ok=mesh_ok)
         for command in self.mesh.drain_commands():
             LOGGER.info("Replying to mesh command from %s: %s", command.sender, command.text)
+            kind = command_kind(command.text, self.config.command_prefix)
+            if kind == "last_seen":
+                self._restore_last_seen_if_needed()
+                response = format_last_seen(self.state, now)
+            elif kind == "today":
+                response = format_today(self.state, now)
+            elif kind == "help":
+                response = format_help()
+            elif kind == "status":
+                response = format_status()
+            else:
+                continue
             self.mesh.send_direct(command.sender, response)
 
-    def _db_healthy(self) -> bool:
-        try:
-            self.db.check()
-        except Exception:  # noqa: BLE001 - health probe only
-            return False
-        return True
+    def _restore_last_seen_if_needed(self) -> None:
+        if self.state.last_detection_name:
+            return
+        latest = self.db.fetch_latest_detection()
+        if latest is None:
+            return
+        self.state.last_detection_name = latest.common_name
+        self.state.last_detection_at = latest.observed_at.isoformat()
+        self.state_store.save(self.state)

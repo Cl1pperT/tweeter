@@ -13,7 +13,7 @@ It is designed for a Raspberry Pi Zero 2 W running on solar power:
 - Polls `~/BirdNET-Pi/scripts/birds.db` for new rows in `detections`
 - Sends an immediate mesh alert the first time a species appears each local day
 - Batches repeat detections into periodic summary messages
-- Replies directly to `bird status` commands received over the mesh
+- Replies directly to friendly questions and commands received over the mesh
 - Persists cursor and alert state with atomic writes so restarts do not resend old detections
 
 ## Install
@@ -125,10 +125,13 @@ sudo journalctl -u birdmesh.service -f
 
 ## Mesh Behavior
 
-- Alert format: `BirdMesh HH:MM Common Name 92%`
-- Summary format: `BirdMesh sum 12 det/4 spp/15m: Robin x5, Jay x3, +1 more`
-- Command: `bird status`
-- Status reply is sent directly back to the requesting node
+- Alert format: `🐦 Look who's here: House Finch! (92%)`
+- Summary format: `🎶 More bird visits: House Finch ×5, Blue Jay ×3`
+- `who's here?` replies with the most recently heard bird and how many minutes ago it visited
+- `birds today?` shares today's visit and species counts
+- `bird status` confirms BirdMesh is listening
+- `bird help` lists the available questions
+- Replies are sent directly back to the requesting node
 
 Routine bird broadcasts are sent with `wantAck=False` to keep airtime and power use low.
 

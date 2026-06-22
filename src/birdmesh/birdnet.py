@@ -46,6 +46,26 @@ class BirdNETDatabase:
             ).fetchall()
         return list(self._parse_rows(rows))
 
+    def fetch_latest_detection(self) -> Detection | None:
+        with self._connect() as connection:
+            connection.row_factory = sqlite3.Row
+            rows = connection.execute(
+                """
+                SELECT
+                    rowid,
+                    Date,
+                    Time,
+                    Sci_Name,
+                    Com_Name,
+                    Confidence,
+                    File_Name
+                FROM detections
+                ORDER BY rowid DESC
+                LIMIT 10
+                """
+            ).fetchall()
+        return next(iter(self._parse_rows(rows)), None)
+
     def _parse_rows(self, rows: Iterable[sqlite3.Row]) -> Iterable[Detection]:
         for row in rows:
             try:
