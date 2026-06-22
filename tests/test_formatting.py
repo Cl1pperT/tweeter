@@ -89,21 +89,22 @@ class FormattingTests(unittest.TestCase):
             "🦉 Today I've heard 8 visits from 3 species: 🐦 American Robin, 🐦 Blue Jay, 🐦 House Wren.",
         )
 
-    def test_today_falls_back_to_species_keys_from_existing_state(self) -> None:
+    def test_today_does_not_expose_scientific_keys_from_existing_state(self) -> None:
         state = AppState(
             daily_counters={
                 "2026-04-04": {
                     "detections": 2,
                     "alerts": 2,
                     "summaries": 0,
-                    "unique_species": ["Robin", "Wren"],
+                    "unique_species": ["Turdus migratorius", "Troglodytes aedon"],
                 }
             },
         )
 
         text = format_today(state, datetime(2026, 4, 4, 7, 0, tzinfo=timezone.utc))
 
-        self.assertEqual(text, "🦉 Today I've heard 2 visits from 2 species: 🐦 Robin, 🐦 Wren.")
+        self.assertEqual(text, "🦉 Today I've heard 2 visits from 2 species.")
+        self.assertNotIn("Turdus", text)
 
     def test_last_seen_reports_elapsed_minutes(self) -> None:
         state = AppState(

@@ -51,6 +51,14 @@ class BirdNETDatabaseTests(unittest.TestCase):
                 """,
                 ("2026-04-04", "06:06:00", "", "", 0.50, 0, 0, 0, 14, 1, 0, "bad.wav"),
             )
+            connection.execute(
+                """
+                INSERT INTO detections
+                (Date, Time, Sci_Name, Com_Name, Confidence, Lat, Lon, Cutoff, Week, Sens, Overlap, File_Name)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                ("2026-04-04", "06:07:00", "Buteo jamaicensis", "", 0.90, 0, 0, 0, 14, 1, 0, "no-common-name.wav"),
+            )
             connection.commit()
             connection.close()
 

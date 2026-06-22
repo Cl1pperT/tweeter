@@ -110,6 +110,7 @@ class BirdMeshApp:
                 self._restore_last_seen_if_needed()
                 response = format_last_seen(self.state, now)
             elif kind == "today":
+                self._restore_today_species_if_needed(now)
                 response = format_today(self.state, now)
             elif kind == "help":
                 response = format_help()
@@ -127,4 +128,15 @@ class BirdMeshApp:
             return
         self.state.last_detection_name = latest.common_name
         self.state.last_detection_at = latest.observed_at.isoformat()
+        self.state_store.save(self.state)
+
+    def _restore_today_species_if_needed(self, now: datetime) -> None:
+        day = now.date().isoformat()
+        counts = self.state.today_counts(day)
+        if len(self.state.today_species(day)) >= counts["unique_species"]:
+            return
+        species_names = self.db.fetch_common_names_for_day(day)
+        if not species_names:
+            return
+        self.state.set_today_species(day, species_names)
         self.state_store.save(self.state)

@@ -84,8 +84,12 @@ class AppState:
 
     def today_species(self, day: str) -> list[str]:
         counters = self.daily_counters.get(day, _default_daily_counter())
-        names = counters.get("species_names") or counters.get("unique_species", [])
+        names = counters.get("species_names", [])
         return sorted({str(name) for name in names}, key=str.casefold)
+
+    def set_today_species(self, day: str, species_names: list[str]) -> None:
+        counters = self.daily_counters.setdefault(day, _default_daily_counter())
+        counters["species_names"] = sorted(set(species_names), key=str.casefold)
 
     def trim(self, keep_days: int = 7) -> None:
         all_days = sorted(set(self.alerted_species_by_day) | set(self.daily_counters))

@@ -235,6 +235,45 @@ class AppTests(unittest.TestCase):
 
         self.assertEqual(mesh.direct_messages, [(1234, "🐦 American Robin stopped by 3 minutes ago!")])
 
+    def test_birds_today_restores_common_names_for_existing_state(self) -> None:
+        now = datetime.now(timezone.utc)
+        day = now.date().isoformat()
+        self._insert_detection(now - timedelta(minutes=5), "Turdus migratorius", "American Robin", 0.91)
+        self._insert_detection(now - timedelta(minutes=3), "Buteo jamaicensis", "Red-tailed Hawk", 0.89)
+        StateStore(self.state_path).save(
+            AppState(
+                last_rowid=2,
+                daily_counters={
+                    day: {
+                        "detections": 2,
+                        "alerts": 2,
+                        "summaries": 0,
+                        "unique_species": ["Buteo jamaicensis", "Turdus migratorius"],
+                    }
+                },
+            )
+        )
+        mesh = FakeMeshClient()
+        mesh._commands.append(CommandMessage(sender=1234, text="birds today?"))
+        app = BirdMeshApp(
+            self.config,
+            state_store=StateStore(self.state_path),
+            db=BirdNETDatabase(self.db_path, timezone.utc),
+            mesh=mesh,
+        )
+
+        app.run_once()
+        app.close()
+
+        self.assertEqual(
+            mesh.direct_messages,
+            [(1234, "🦉 Today I've heard 2 visits from 2 species: 🐦 American Robin, 🦅 Red-tailed Hawk.")],
+        )
+        self.assertEqual(
+            StateStore(self.state_path).load().today_species(day),
+            ["American Robin", "Red-tailed Hawk"],
+        )
+
     def test_interactive_commands_are_recognized_from_mesh_text(self) -> None:
         client = MeshtasticClient(self.config)
         interface = SimpleNamespace(localNode=SimpleNamespace(nodeNum=99))

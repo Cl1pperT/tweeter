@@ -75,20 +75,38 @@ class BirdNETDatabase:
             connection.close()
         return next(iter(self._parse_rows(rows)), None)
 
+    def fetch_common_names_for_day(self, day: str) -> list[str]:
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                """
+                SELECT DISTINCT TRIM(Com_Name)
+                FROM detections
+                WHERE Date = ?
+                    AND Com_Name IS NOT NULL
+                    AND TRIM(Com_Name) != ''
+                ORDER BY TRIM(Com_Name) COLLATE NOCASE
+                """,
+                (day,),
+            ).fetchall()
+        finally:
+            connection.close()
+        return [str(row[0]) for row in rows]
+
     def _parse_rows(self, rows: Iterable[sqlite3.Row]) -> Iterable[Detection]:
         for row in rows:
             try:
                 observed_at = datetime.strptime(f"{row['Date']} {row['Time']}", "%Y-%m-%d %H:%M:%S").replace(tzinfo=self.tzinfo)
                 scientific_name = (row["Sci_Name"] or "").strip()
-                common_name = (row["Com_Name"] or scientific_name).strip()
+                common_name = (row["Com_Name"] or "").strip()
                 confidence = float(row["Confidence"])
-                if not scientific_name and not common_name:
-                    raise ValueError("missing bird name")
+                if not common_name:
+                    raise ValueError("missing common bird name")
                 yield Detection(
                     rowid=int(row["rowid"]),
                     observed_at=observed_at,
                     scientific_name=scientific_name or common_name,
-                    common_name=common_name or scientific_name,
+                    common_name=common_name,
                     confidence=max(0.0, min(confidence, 1.0)),
                     file_name=row["File_Name"],
                 )
