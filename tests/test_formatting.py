@@ -32,8 +32,27 @@ class FormattingTests(unittest.TestCase):
 
         text = format_alert(detection)
 
-        self.assertEqual(text, "🦉 Look who's here: House Finch! (92%)")
+        self.assertEqual(text, "🐦 Look who's here: House Finch! (92%)")
         self.assertNotIn("06:30", text)
+
+    def test_alert_uses_species_category_emoji(self) -> None:
+        owl = Detection(
+            rowid=1,
+            observed_at=datetime(2026, 4, 4, 6, 30, tzinfo=timezone.utc),
+            scientific_name="Bubo virginianus",
+            common_name="Great Horned Owl",
+            confidence=0.95,
+        )
+        hawk = Detection(
+            rowid=2,
+            observed_at=datetime(2026, 4, 4, 6, 31, tzinfo=timezone.utc),
+            scientific_name="Buteo jamaicensis",
+            common_name="Red-tailed Hawk",
+            confidence=0.90,
+        )
+
+        self.assertTrue(format_alert(owl).startswith("🦉"))
+        self.assertTrue(format_alert(hawk).startswith("🦅"))
 
     def test_summary_truncates_with_more_suffix(self) -> None:
         state = AppState(
@@ -67,7 +86,7 @@ class FormattingTests(unittest.TestCase):
         text = format_today(state, datetime(2026, 4, 4, 7, 0, tzinfo=timezone.utc))
         self.assertEqual(
             text,
-            "🦉 Today I've heard 8 visits from 3 species: American Robin, Blue Jay, House Wren.",
+            "🦉 Today I've heard 8 visits from 3 species: 🐦 American Robin, 🐦 Blue Jay, 🐦 House Wren.",
         )
 
     def test_today_falls_back_to_species_keys_from_existing_state(self) -> None:
@@ -84,7 +103,7 @@ class FormattingTests(unittest.TestCase):
 
         text = format_today(state, datetime(2026, 4, 4, 7, 0, tzinfo=timezone.utc))
 
-        self.assertEqual(text, "🦉 Today I've heard 2 visits from 2 species: Robin, Wren.")
+        self.assertEqual(text, "🦉 Today I've heard 2 visits from 2 species: 🐦 Robin, 🐦 Wren.")
 
     def test_last_seen_reports_elapsed_minutes(self) -> None:
         state = AppState(
@@ -94,7 +113,7 @@ class FormattingTests(unittest.TestCase):
 
         text = format_last_seen(state, datetime(2026, 4, 4, 7, 0, tzinfo=timezone.utc))
 
-        self.assertEqual(text, "🦉 House Finch stopped by 5 minutes ago!")
+        self.assertEqual(text, "🐦 House Finch stopped by 5 minutes ago!")
 
     def test_last_seen_handles_no_visitors(self) -> None:
         self.assertEqual(
