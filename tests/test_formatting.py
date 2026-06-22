@@ -9,12 +9,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from birdmesh.formatting import (
     MAX_TEXT_LENGTH,
+    format_activity,
     format_alert,
     format_help,
     format_last_seen,
+    format_owls_today,
+    format_species_not_seen,
+    format_species_seen,
     format_status,
     format_summary,
     format_today,
+    format_top_bird,
 )
 from birdmesh.models import Detection
 from birdmesh.state import AppState
@@ -86,7 +91,7 @@ class FormattingTests(unittest.TestCase):
         text = format_today(state, datetime(2026, 4, 4, 7, 0, tzinfo=timezone.utc))
         self.assertEqual(
             text,
-            "🦉 Today I've heard 8 visits from 3 species: 🐦 American Robin, 🐦 Blue Jay, 🐦 House Wren.",
+            "Today I've heard 8 visits from 3 species: American Robin, Blue Jay, House Wren.",
         )
 
     def test_today_does_not_expose_scientific_keys_from_existing_state(self) -> None:
@@ -103,7 +108,7 @@ class FormattingTests(unittest.TestCase):
 
         text = format_today(state, datetime(2026, 4, 4, 7, 0, tzinfo=timezone.utc))
 
-        self.assertEqual(text, "🦉 Today I've heard 2 visits from 2 species.")
+        self.assertEqual(text, "Today I've heard 2 visits from 2 species.")
         self.assertNotIn("Turdus", text)
 
     def test_last_seen_reports_elapsed_minutes(self) -> None:
@@ -114,17 +119,33 @@ class FormattingTests(unittest.TestCase):
 
         text = format_last_seen(state, datetime(2026, 4, 4, 7, 0, tzinfo=timezone.utc))
 
-        self.assertEqual(text, "🐦 House Finch stopped by 5 minutes ago!")
+        self.assertEqual(text, "House Finch was here 5 minutes ago.")
 
     def test_last_seen_handles_no_visitors(self) -> None:
         self.assertEqual(
             format_last_seen(AppState(), datetime(2026, 4, 4, 7, 0, tzinfo=timezone.utc)),
-            "🦉 No visitors yet. Check back soon!",
+            "No visitors yet. Check back soon!",
         )
 
     def test_status_and_help_are_friendly(self) -> None:
-        self.assertEqual(format_status(), "🦉 BirdMesh is listening and ready!")
+        self.assertEqual(format_status(), "BirdMesh is listening and ready!")
         self.assertIn("Who's here?", format_help())
+        self.assertIn("when was <species> here?", format_help())
+        self.assertLessEqual(len(format_help()), MAX_TEXT_LENGTH)
+
+    def test_new_information_responses_are_compact_and_emoji_free(self) -> None:
+        now = datetime(2026, 4, 4, 7, 0, tzinfo=timezone.utc)
+
+        self.assertEqual(format_top_bird(("American Robin", 5)), "Top bird today: American Robin with 5 visits.")
+        self.assertEqual(format_top_bird(None), "No birds heard today.")
+        self.assertEqual(format_owls_today(["Barn Owl", "Great Horned Owl"]), "Owls today: Barn Owl, Great Horned Owl.")
+        self.assertEqual(format_owls_today([]), "No owls heard today.")
+        self.assertEqual(
+            format_species_seen("Great Horned Owl", datetime(2026, 4, 4, 6, 45, tzinfo=timezone.utc), now),
+            "Great Horned Owl was here 15 minutes ago.",
+        )
+        self.assertEqual(format_species_not_seen("Snowy Owl"), "I haven't heard Snowy Owl yet.")
+        self.assertEqual(format_activity(12, 4), "Last hour: 12 visits from 4 species.")
 
 
 if __name__ == "__main__":

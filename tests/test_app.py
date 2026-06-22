@@ -192,7 +192,7 @@ class AppTests(unittest.TestCase):
 
         self.assertEqual(len(mesh.direct_messages), 1)
         self.assertEqual(mesh.direct_messages[0][0], 1234)
-        self.assertEqual(mesh.direct_messages[0][1], "🦉 BirdMesh is listening and ready!")
+        self.assertEqual(mesh.direct_messages[0][1], "BirdMesh is listening and ready!")
 
     def test_whos_here_replies_with_latest_bird_and_elapsed_minutes(self) -> None:
         self._insert_detection(
@@ -213,7 +213,7 @@ class AppTests(unittest.TestCase):
         app.run_once()
         app.close()
 
-        self.assertEqual(mesh.direct_messages, [(1234, "🐦 House Finch stopped by 5 minutes ago!")])
+        self.assertEqual(mesh.direct_messages, [(1234, "House Finch was here 5 minutes ago.")])
         reloaded = StateStore(self.state_path).load()
         self.assertEqual(reloaded.last_detection_name, "House Finch")
 
@@ -233,7 +233,7 @@ class AppTests(unittest.TestCase):
         app.run_once()
         app.close()
 
-        self.assertEqual(mesh.direct_messages, [(1234, "🐦 American Robin stopped by 3 minutes ago!")])
+        self.assertEqual(mesh.direct_messages, [(1234, "American Robin was here 3 minutes ago.")])
 
     def test_birds_today_restores_common_names_for_existing_state(self) -> None:
         now = datetime.now(timezone.utc)
@@ -267,11 +267,46 @@ class AppTests(unittest.TestCase):
 
         self.assertEqual(
             mesh.direct_messages,
-            [(1234, "🦉 Today I've heard 2 visits from 2 species: 🐦 American Robin, 🦅 Red-tailed Hawk.")],
+            [(1234, "Today I've heard 2 visits from 2 species: American Robin, Red-tailed Hawk.")],
         )
         self.assertEqual(
             StateStore(self.state_path).load().today_species(day),
             ["American Robin", "Red-tailed Hawk"],
+        )
+
+    def test_new_information_commands_query_birdnet(self) -> None:
+        now = datetime.now(timezone.utc)
+        self._insert_detection(now - timedelta(minutes=10), "Turdus migratorius", "American Robin", 0.91)
+        self._insert_detection(now - timedelta(minutes=8), "Turdus migratorius", "American Robin", 0.88)
+        self._insert_detection(now - timedelta(minutes=5), "Bubo virginianus", "Great Horned Owl", 0.93)
+        mesh = FakeMeshClient()
+        for text in (
+            "Top bird today?",
+            "Any owls today?",
+            "When was Bubo virginianus here?",
+            "When was American Robin here?",
+            "How busy is it?",
+        ):
+            mesh._commands.append(CommandMessage(sender=1234, text=text))
+        app = BirdMeshApp(
+            self.config,
+            state_store=StateStore(self.state_path),
+            db=BirdNETDatabase(self.db_path, timezone.utc),
+            mesh=mesh,
+        )
+
+        app.run_once()
+        app.close()
+
+        self.assertEqual(
+            [message for _, message in mesh.direct_messages],
+            [
+                "Top bird today: American Robin with 2 visits.",
+                "Owls today: Great Horned Owl.",
+                "Great Horned Owl was here 5 minutes ago.",
+                "American Robin was here 8 minutes ago.",
+                "Last hour: 3 visits from 2 species.",
+            ],
         )
 
     def test_interactive_commands_are_recognized_from_mesh_text(self) -> None:

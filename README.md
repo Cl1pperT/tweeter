@@ -164,11 +164,16 @@ when the service restarts successfully. Its defaults can be overridden with
 - Bird types get relevant icons when recognized, such as `🦉` for owls, `🦅` for raptors, and `🦆` for ducks
 - `who's here?`, `whos here?`, `who is here?`, `bird who's here?`, or `bird who?` replies with the most recently heard bird and how many minutes ago it visited
 - `birds today?`, `what have you seen?`, or `bird today?` shares today's visit count and common species names
+- `top bird today?` or `bird top` reports today's most frequently detected species
+- `any owls today?` or `bird owls` lists owl species heard today
+- `when was <species> here?` reports the latest visit using either a common or scientific name
+- `how busy is it?` or `bird busy` reports visits and unique species from the last hour
 - `bird status` confirms BirdMesh is listening
 - `bird help` or `what can I ask?` lists the available questions
 - Commands are case-insensitive and can be sent directly to the node or in the configured BirdMesh channel
 - Group commands from every other channel are ignored
 - Replies are always sent directly back to the requesting node
+- Informational command replies omit emojis to reduce airtime
 
 Routine bird broadcasts are sent with `wantAck=False` to keep airtime and power use low.
 

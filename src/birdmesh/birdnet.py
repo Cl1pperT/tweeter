@@ -93,6 +93,73 @@ class BirdNETDatabase:
             connection.close()
         return [str(row[0]) for row in rows]
 
+    def fetch_top_common_name_for_day(self, day: str) -> tuple[str, int] | None:
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                """
+                SELECT TRIM(Com_Name) AS common_name, COUNT(*) AS detection_count
+                FROM detections
+                WHERE Date = ?
+                    AND Com_Name IS NOT NULL
+                    AND TRIM(Com_Name) != ''
+                GROUP BY TRIM(Com_Name) COLLATE NOCASE
+                ORDER BY detection_count DESC, common_name COLLATE NOCASE
+                LIMIT 1
+                """,
+                (day,),
+            ).fetchone()
+        finally:
+            connection.close()
+        return (str(row[0]), int(row[1])) if row else None
+
+    def fetch_latest_detection_for_species(self, species_name: str) -> Detection | None:
+        connection = self._connect()
+        try:
+            connection.row_factory = sqlite3.Row
+            rows = connection.execute(
+                """
+                SELECT
+                    rowid,
+                    Date,
+                    Time,
+                    Sci_Name,
+                    Com_Name,
+                    Confidence,
+                    File_Name
+                FROM detections
+                WHERE TRIM(Com_Name) = ? COLLATE NOCASE
+                    OR TRIM(Sci_Name) = ? COLLATE NOCASE
+                ORDER BY rowid DESC
+                LIMIT 10
+                """,
+                (species_name, species_name),
+            ).fetchall()
+        finally:
+            connection.close()
+        return next(iter(self._parse_rows(rows)), None)
+
+    def fetch_activity_between(self, started_at: datetime, ended_at: datetime) -> tuple[int, int]:
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                """
+                SELECT COUNT(*), COUNT(DISTINCT TRIM(Com_Name))
+                FROM detections
+                WHERE (Date || ' ' || Time) >= ?
+                    AND (Date || ' ' || Time) <= ?
+                    AND Com_Name IS NOT NULL
+                    AND TRIM(Com_Name) != ''
+                """,
+                (
+                    started_at.strftime("%Y-%m-%d %H:%M:%S"),
+                    ended_at.strftime("%Y-%m-%d %H:%M:%S"),
+                ),
+            ).fetchone()
+        finally:
+            connection.close()
+        return (int(row[0]), int(row[1])) if row else (0, 0)
+
     def _parse_rows(self, rows: Iterable[sqlite3.Row]) -> Iterable[Detection]:
         for row in rows:
             try:

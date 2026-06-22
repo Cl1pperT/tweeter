@@ -41,7 +41,7 @@ def format_summary(state: AppState, window_minutes: int) -> str:
 
 
 def format_status() -> str:
-    return "🦉 BirdMesh is listening and ready!"
+    return "BirdMesh is listening and ready!"
 
 
 def format_today(state: AppState, now: datetime) -> str:
@@ -50,7 +50,7 @@ def format_today(state: AppState, now: datetime) -> str:
     species = state.today_species(today)
     visit_word = "visit" if counts["detections"] == 1 else "visits"
     base = (
-        f"🦉 Today I've heard {counts['detections']} {visit_word} "
+        f"Today I've heard {counts['detections']} {visit_word} "
         f"from {counts['unique_species']} species"
     )
     if not species:
@@ -58,7 +58,7 @@ def format_today(state: AppState, now: datetime) -> str:
 
     rendered: list[str] = []
     for index, name in enumerate(species):
-        species_text = f"{species_emoji(name)} {name}"
+        species_text = name
         candidate = f"{base}: {', '.join(rendered + [species_text])}."
         if len(candidate) <= MAX_TEXT_LENGTH:
             rendered.append(species_text)
@@ -73,22 +73,60 @@ def format_today(state: AppState, now: datetime) -> str:
 
 def format_last_seen(state: AppState, now: datetime) -> str:
     if not state.last_detection_name or not state.last_detection_at:
-        return "🦉 No visitors yet. Check back soon!"
+        return "No visitors yet. Check back soon!"
     try:
         observed_at = datetime.fromisoformat(state.last_detection_at)
-        minutes = max(0, int((now - observed_at).total_seconds() // 60))
     except (TypeError, ValueError):
-        emoji = species_emoji(state.last_detection_name)
-        return f"{emoji} The latest visitor was {state.last_detection_name}."
-    emoji = species_emoji(state.last_detection_name)
+        return f"The latest visitor was {state.last_detection_name}."
+    return format_species_seen(state.last_detection_name, observed_at, now)
+
+
+def format_species_seen(species_name: str, observed_at: datetime, now: datetime) -> str:
+    minutes = max(0, int((now - observed_at).total_seconds() // 60))
     if minutes < 1:
-        return _limit_text(f"{emoji} {state.last_detection_name} just stopped by!")
+        return _limit_text(f"{species_name} was here just now.")
     minute_word = "minute" if minutes == 1 else "minutes"
-    return _limit_text(f"{emoji} {state.last_detection_name} stopped by {minutes} {minute_word} ago!")
+    return _limit_text(f"{species_name} was here {minutes} {minute_word} ago.")
+
+
+def format_species_not_seen(species_name: str) -> str:
+    return _limit_text(f"I haven't heard {species_name} yet.")
+
+
+def format_top_bird(top_bird: tuple[str, int] | None) -> str:
+    if top_bird is None:
+        return "No birds heard today."
+    species_name, count = top_bird
+    visit_word = "visit" if count == 1 else "visits"
+    return _limit_text(f"Top bird today: {species_name} with {count} {visit_word}.")
+
+
+def format_owls_today(species_names: list[str]) -> str:
+    if not species_names:
+        return "No owls heard today."
+    base = "Owls today:"
+    rendered: list[str] = []
+    for index, name in enumerate(species_names):
+        candidate = f"{base} {', '.join(rendered + [name])}."
+        if len(candidate) <= MAX_TEXT_LENGTH:
+            rendered.append(name)
+            continue
+        remaining = len(species_names) - index
+        suffix = f", +{remaining} more."
+        return _limit_text(f"{base} {', '.join(rendered)}{suffix}")
+    return _limit_text(f"{base} {', '.join(rendered)}.")
+
+
+def format_activity(detections: int, species: int) -> str:
+    visit_word = "visit" if detections == 1 else "visits"
+    return f"Last hour: {detections} {visit_word} from {species} species."
 
 
 def format_help() -> str:
-    return _limit_text("🦉 Ask me: Who's here? • Birds today? • bird status • bird help")
+    return _limit_text(
+        "Commands: Who's here? | birds today? | top bird today? | any owls today? | "
+        "when was <species> here? | how busy is it? | bird status | bird help"
+    )
 
 
 def _limit_text(text: str) -> str:

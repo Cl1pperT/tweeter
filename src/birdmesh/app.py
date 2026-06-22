@@ -2,12 +2,25 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
+from .bird_emojis import is_owl
 from .birdnet import BirdNETDatabase
-from .commands import command_kind
+from .commands import parse_command
 from .config import Config
-from .formatting import format_alert, format_help, format_last_seen, format_status, format_summary, format_today
+from .formatting import (
+    format_activity,
+    format_alert,
+    format_help,
+    format_last_seen,
+    format_owls_today,
+    format_species_not_seen,
+    format_species_seen,
+    format_status,
+    format_summary,
+    format_today,
+    format_top_bird,
+)
 from .meshtastic_client import MeshtasticClient
 from .state import AppState, StateStore
 from .timeutil import resolve_tzinfo
@@ -105,7 +118,10 @@ class BirdMeshApp:
         now = datetime.now(self.tzinfo)
         for command in self.mesh.drain_commands():
             LOGGER.info("Replying to mesh command from %s: %s", command.sender, command.text)
-            kind = command_kind(command.text, self.config.command_prefix)
+            parsed = parse_command(command.text, self.config.command_prefix)
+            if parsed is None:
+                continue
+            kind = parsed.kind
             if kind == "last_seen":
                 self._restore_last_seen_if_needed()
                 response = format_last_seen(self.state, now)
@@ -116,6 +132,21 @@ class BirdMeshApp:
                 response = format_help()
             elif kind == "status":
                 response = format_status()
+            elif kind == "top_today":
+                response = format_top_bird(self.db.fetch_top_common_name_for_day(now.date().isoformat()))
+            elif kind == "owls_today":
+                species_names = self.db.fetch_common_names_for_day(now.date().isoformat())
+                response = format_owls_today([name for name in species_names if is_owl(name)])
+            elif kind == "species_last_seen" and parsed.argument:
+                detection = self.db.fetch_latest_detection_for_species(parsed.argument)
+                response = (
+                    format_species_seen(detection.common_name, detection.observed_at, now)
+                    if detection
+                    else format_species_not_seen(parsed.argument)
+                )
+            elif kind == "busy":
+                detections, species = self.db.fetch_activity_between(now - timedelta(hours=1), now)
+                response = format_activity(detections, species)
             else:
                 continue
             self.mesh.send_direct(command.sender, response)

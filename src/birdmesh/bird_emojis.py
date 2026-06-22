@@ -58,9 +58,18 @@ _CATEGORY_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
 )
 
 
+def _normalize_species_name(species_name: str) -> str:
+    return f" {re.sub(r'[^a-z0-9]+', ' ', species_name.casefold()).strip()} "
+
+
 def species_emoji(species_name: str) -> str:
-    normalized = f" {re.sub(r'[^a-z0-9]+', ' ', species_name.casefold()).strip()} "
+    normalized = _normalize_species_name(species_name)
     for emoji, keywords in _CATEGORY_RULES:
         if any(f" {keyword} " in normalized for keyword in keywords):
             return emoji
     return "🐦"
+
+
+def is_owl(species_name: str) -> bool:
+    normalized = _normalize_species_name(species_name)
+    return any(f" {keyword} " in normalized for keyword in ("owl", "owlet"))
