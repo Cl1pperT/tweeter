@@ -79,7 +79,7 @@ class AppTests(unittest.TestCase):
             channel_name="Bird Mesh",
             channel_index=None,
             poll_seconds=15,
-            summary_minutes=15,
+            summary_minutes=60,
             command_prefix="bird",
             timezone_name="UTC",
             log_level="INFO",
@@ -152,7 +152,7 @@ class AppTests(unittest.TestCase):
             last_rowid=3,
             pending_summary_total=2,
             pending_summary_species={"American Robin": {"count": 2, "max_confidence": 0.9}},
-            pending_window_started_at=(datetime.now(timezone.utc) - timedelta(minutes=16)).isoformat(),
+            pending_window_started_at=(datetime.now(timezone.utc) - timedelta(minutes=61)).isoformat(),
         )
         StateStore(self.state_path).save(state)
         mesh = FakeMeshClient()
@@ -232,11 +232,12 @@ class AppTests(unittest.TestCase):
         interface = SimpleNamespace(localNode=SimpleNamespace(nodeNum=99))
         client.interface = interface
 
-        for index, text in enumerate(("Who's here?", "Birds today?", "bird help"), start=1):
+        mixed_case_commands = ("wHo'S HeRe?", "BIRDS TODAY?", "BiRd HeLp", "BIRD STATUS")
+        for index, text in enumerate(mixed_case_commands, start=1):
             client._on_receive_text({"from": index, "decoded": {"text": text}}, interface)
 
         commands = client.drain_commands()
-        self.assertEqual([command.text for command in commands], ["Who's here?", "Birds today?", "bird help"])
+        self.assertEqual([command.text for command in commands], list(mixed_case_commands))
 
     def test_channel_resolution_uses_name_then_fallback_index(self) -> None:
         client = MeshtasticClient(self.config)

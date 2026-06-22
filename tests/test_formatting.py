@@ -45,10 +45,10 @@ class FormattingTests(unittest.TestCase):
                 "Northern Flicker": {"count": 3, "max_confidence": 0.6},
             },
         )
-        text = format_summary(state, window_minutes=15)
+        text = format_summary(state, window_minutes=60)
         self.assertLessEqual(len(text), MAX_TEXT_LENGTH)
         self.assertTrue(text.startswith("🎶 More bird visits:"))
-        self.assertNotIn("15m", text)
+        self.assertNotIn("60m", text)
         self.assertNotIn("det/", text)
 
     def test_today_reports_daily_counts(self) -> None:
