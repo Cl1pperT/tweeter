@@ -109,7 +109,7 @@ class MeshtasticClient:
     def _on_receive_text(self, packet, interface) -> None:
         if self.interface is None or interface is not self.interface:
             return
-        if not self._is_configured_channel(packet):
+        if not self._is_direct_to_self(packet) and not self._is_configured_channel(packet):
             return
         text = self._extract_text(packet)
         if not text:
@@ -132,12 +132,25 @@ class MeshtasticClient:
         except (KeyError, TypeError, ValueError):
             return False
 
-    def _is_from_self(self, packet: dict[str, Any]) -> bool:
+    def _is_direct_to_self(self, packet: dict[str, Any]) -> bool:
+        local_numbers = self._local_node_numbers()
+        destination = packet.get("to")
+        if destination in local_numbers:
+            return True
+
+        local_ids = {f"!{node_number:08x}" for node_number in local_numbers}
+        destination_id = packet.get("toId")
+        return isinstance(destination_id, str) and destination_id.lower() in local_ids
+
+    def _local_node_numbers(self) -> set[int]:
         local_num = getattr(getattr(self.interface, "localNode", None), "nodeNum", None)
         my_info = getattr(self.interface, "myInfo", None)
         my_num = getattr(my_info, "my_node_num", None)
+        return {node_number for node_number in (local_num, my_num) if isinstance(node_number, int)}
+
+    def _is_from_self(self, packet: dict[str, Any]) -> bool:
         sender = packet.get("from")
-        return sender in {local_num, my_num}
+        return sender in self._local_node_numbers()
 
     @staticmethod
     def _extract_text(packet: dict[str, Any]) -> str | None:

@@ -165,7 +165,8 @@ when the service restarts successfully. Its defaults can be overridden with
 - `birds today?`, `what have you seen?`, or `bird today?` shares today's visit and species counts
 - `bird status` confirms BirdMesh is listening
 - `bird help` or `what can I ask?` lists the available questions
-- Commands are case-insensitive and are accepted only on the configured BirdMesh channel
+- Commands are case-insensitive and can be sent directly to the node or in the configured BirdMesh channel
+- Group commands from every other channel are ignored
 - Replies are always sent directly back to the requesting node
 
 Routine bird broadcasts are sent with `wantAck=False` to keep airtime and power use low.

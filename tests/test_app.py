@@ -245,7 +245,7 @@ class AppTests(unittest.TestCase):
         commands = client.drain_commands()
         self.assertEqual([command.text for command in commands], list(mixed_case_commands))
 
-    def test_commands_are_filtered_to_configured_channel(self) -> None:
+    def test_group_commands_are_filtered_to_configured_channel(self) -> None:
         client = MeshtasticClient(self.config)
         interface = SimpleNamespace(localNode=SimpleNamespace(nodeNum=99))
         client.interface = interface
@@ -257,6 +257,31 @@ class AppTests(unittest.TestCase):
 
         commands = client.drain_commands()
         self.assertEqual([(command.sender, command.text) for command in commands], [(3, "bird status")])
+
+    def test_direct_commands_are_accepted_from_any_channel(self) -> None:
+        client = MeshtasticClient(self.config)
+        interface = SimpleNamespace(localNode=SimpleNamespace(nodeNum=99))
+        client.interface = interface
+        client.channel_index = 2
+
+        client._on_receive_text(
+            {"from": 1, "to": 99, "channel": 1, "decoded": {"text": "bird status"}},
+            interface,
+        )
+        client._on_receive_text(
+            {"from": 2, "toId": "!00000063", "decoded": {"text": "birds today?"}},
+            interface,
+        )
+        client._on_receive_text(
+            {"from": 3, "to": 100, "channel": 1, "decoded": {"text": "bird help"}},
+            interface,
+        )
+
+        commands = client.drain_commands()
+        self.assertEqual(
+            [(command.sender, command.text) for command in commands],
+            [(1, "bird status"), (2, "birds today?")],
+        )
 
     def test_serial_check_explains_service_port_conflict(self) -> None:
         config = replace(
