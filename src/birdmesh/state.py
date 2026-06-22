@@ -11,7 +11,13 @@ from .models import Detection
 
 
 def _default_daily_counter() -> dict[str, int | list[str]]:
-    return {"detections": 0, "alerts": 0, "summaries": 0, "unique_species": []}
+    return {
+        "detections": 0,
+        "alerts": 0,
+        "summaries": 0,
+        "unique_species": [],
+        "species_names": [],
+    }
 
 
 @dataclass(slots=True)
@@ -33,6 +39,9 @@ class AppState:
         unique_species = set(counters["unique_species"])
         unique_species.add(detection.species_key)
         counters["unique_species"] = sorted(unique_species)
+        species_names = set(counters.get("species_names", []))
+        species_names.add(detection.common_name)
+        counters["species_names"] = sorted(species_names, key=str.casefold)
         if alerted:
             counters["alerts"] = int(counters["alerts"]) + 1
             alerted_species = set(self.alerted_species_by_day.setdefault(day, []))
@@ -72,6 +81,11 @@ class AppState:
             "summaries": int(counters["summaries"]),
             "unique_species": len(set(counters["unique_species"])),
         }
+
+    def today_species(self, day: str) -> list[str]:
+        counters = self.daily_counters.get(day, _default_daily_counter())
+        names = counters.get("species_names") or counters.get("unique_species", [])
+        return sorted({str(name) for name in names}, key=str.casefold)
 
     def trim(self, keep_days: int = 7) -> None:
         all_days = sorted(set(self.alerted_species_by_day) | set(self.daily_counters))

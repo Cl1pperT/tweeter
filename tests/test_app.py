@@ -139,7 +139,10 @@ class AppTests(unittest.TestCase):
         app.close()
 
         self.assertEqual(len(mesh.broadcasts), 2)
-        self.assertEqual(mesh.broadcasts[0], "🐦 Look who's here: American Robin! (91%)")
+        self.assertEqual(mesh.broadcasts[0], "🦉 Look who's here: American Robin! (91%)")
+        saved_state = StateStore(self.state_path).load()
+        today = now.date().isoformat()
+        self.assertEqual(saved_state.today_species(today), ["American Robin", "Steller's Jay"])
 
         reloaded_mesh = FakeMeshClient()
         reloaded = BirdMeshApp(
@@ -172,7 +175,7 @@ class AppTests(unittest.TestCase):
         app.close()
 
         self.assertEqual(len(mesh.broadcasts), 1)
-        self.assertEqual(mesh.broadcasts[0], "🎶 More bird visits: American Robin ×2")
+        self.assertEqual(mesh.broadcasts[0], "🦉 More bird visits: American Robin ×2")
 
     def test_status_command_replies_directly(self) -> None:
         mesh = FakeMeshClient()
@@ -189,7 +192,7 @@ class AppTests(unittest.TestCase):
 
         self.assertEqual(len(mesh.direct_messages), 1)
         self.assertEqual(mesh.direct_messages[0][0], 1234)
-        self.assertEqual(mesh.direct_messages[0][1], "🐦 BirdMesh is listening and ready!")
+        self.assertEqual(mesh.direct_messages[0][1], "🦉 BirdMesh is listening and ready!")
 
     def test_whos_here_replies_with_latest_bird_and_elapsed_minutes(self) -> None:
         self._insert_detection(
@@ -210,7 +213,7 @@ class AppTests(unittest.TestCase):
         app.run_once()
         app.close()
 
-        self.assertEqual(mesh.direct_messages, [(1234, "🐦 House Finch stopped by 5 minutes ago!")])
+        self.assertEqual(mesh.direct_messages, [(1234, "🦉 House Finch stopped by 5 minutes ago!")])
         reloaded = StateStore(self.state_path).load()
         self.assertEqual(reloaded.last_detection_name, "House Finch")
 
@@ -230,7 +233,7 @@ class AppTests(unittest.TestCase):
         app.run_once()
         app.close()
 
-        self.assertEqual(mesh.direct_messages, [(1234, "🐦 American Robin stopped by 3 minutes ago!")])
+        self.assertEqual(mesh.direct_messages, [(1234, "🦉 American Robin stopped by 3 minutes ago!")])
 
     def test_interactive_commands_are_recognized_from_mesh_text(self) -> None:
         client = MeshtasticClient(self.config)

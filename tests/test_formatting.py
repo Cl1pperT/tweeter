@@ -32,7 +32,7 @@ class FormattingTests(unittest.TestCase):
 
         text = format_alert(detection)
 
-        self.assertEqual(text, "🐦 Look who's here: House Finch! (92%)")
+        self.assertEqual(text, "🦉 Look who's here: House Finch! (92%)")
         self.assertNotIn("06:30", text)
 
     def test_summary_truncates_with_more_suffix(self) -> None:
@@ -47,7 +47,7 @@ class FormattingTests(unittest.TestCase):
         )
         text = format_summary(state, window_minutes=60)
         self.assertLessEqual(len(text), MAX_TEXT_LENGTH)
-        self.assertTrue(text.startswith("🎶 More bird visits:"))
+        self.assertTrue(text.startswith("🦉 More bird visits:"))
         self.assertNotIn("60m", text)
         self.assertNotIn("det/", text)
 
@@ -59,12 +59,32 @@ class FormattingTests(unittest.TestCase):
                     "detections": 8,
                     "alerts": 2,
                     "summaries": 1,
-                    "unique_species": ["Robin", "Jay", "Wren"],
+                    "unique_species": ["Turdus migratorius", "Cyanocitta cristata", "Troglodytes aedon"],
+                    "species_names": ["American Robin", "Blue Jay", "House Wren"],
                 }
             },
         )
         text = format_today(state, datetime(2026, 4, 4, 7, 0, tzinfo=timezone.utc))
-        self.assertEqual(text, "🐦 Today I've heard 8 visits from 3 species.")
+        self.assertEqual(
+            text,
+            "🦉 Today I've heard 8 visits from 3 species: American Robin, Blue Jay, House Wren.",
+        )
+
+    def test_today_falls_back_to_species_keys_from_existing_state(self) -> None:
+        state = AppState(
+            daily_counters={
+                "2026-04-04": {
+                    "detections": 2,
+                    "alerts": 2,
+                    "summaries": 0,
+                    "unique_species": ["Robin", "Wren"],
+                }
+            },
+        )
+
+        text = format_today(state, datetime(2026, 4, 4, 7, 0, tzinfo=timezone.utc))
+
+        self.assertEqual(text, "🦉 Today I've heard 2 visits from 2 species: Robin, Wren.")
 
     def test_last_seen_reports_elapsed_minutes(self) -> None:
         state = AppState(
@@ -74,16 +94,16 @@ class FormattingTests(unittest.TestCase):
 
         text = format_last_seen(state, datetime(2026, 4, 4, 7, 0, tzinfo=timezone.utc))
 
-        self.assertEqual(text, "🐦 House Finch stopped by 5 minutes ago!")
+        self.assertEqual(text, "🦉 House Finch stopped by 5 minutes ago!")
 
     def test_last_seen_handles_no_visitors(self) -> None:
         self.assertEqual(
             format_last_seen(AppState(), datetime(2026, 4, 4, 7, 0, tzinfo=timezone.utc)),
-            "🐦 No visitors yet. Check back soon!",
+            "🦉 No visitors yet. Check back soon!",
         )
 
     def test_status_and_help_are_friendly(self) -> None:
-        self.assertEqual(format_status(), "🐦 BirdMesh is listening and ready!")
+        self.assertEqual(format_status(), "🦉 BirdMesh is listening and ready!")
         self.assertIn("Who's here?", format_help())
 
 

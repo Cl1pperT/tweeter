@@ -159,10 +159,10 @@ when the service restarts successfully. Its defaults can be overridden with
 
 ## Mesh Behavior
 
-- Alert format: `🐦 Look who's here: House Finch! (92%)`
-- Summary format: `🎶 More bird visits: House Finch ×5, Blue Jay ×3`
+- Alert format: `🦉 Look who's here: House Finch! (92%)`
+- Summary format: `🦉 More bird visits: House Finch ×5, Blue Jay ×3`
 - `who's here?`, `whos here?`, `who is here?`, `bird who's here?`, or `bird who?` replies with the most recently heard bird and how many minutes ago it visited
-- `birds today?`, `what have you seen?`, or `bird today?` shares today's visit and species counts
+- `birds today?`, `what have you seen?`, or `bird today?` shares today's visit count and species names
 - `bird status` confirms BirdMesh is listening
 - `bird help` or `what can I ask?` lists the available questions
 - Commands are case-insensitive and can be sent directly to the node or in the configured BirdMesh channel
