@@ -43,6 +43,15 @@ SPECIES_LIST_COMMANDS = {
     "blacklist_remove",
 }
 
+GROUP_RESPONSE_COMMANDS = {
+    "last_seen",
+    "today",
+    "top_today",
+    "owls_today",
+    "species_last_seen",
+    "busy",
+}
+
 
 class ConnectivityCheckError(RuntimeError):
     """Raised when an explicit connectivity check cannot access the radio."""
@@ -188,7 +197,10 @@ class BirdMeshApp:
                 if command.is_direct:
                     self.mesh.send_direct(command.sender, format_unrecognized_request())
                 continue
-            self.mesh.send_direct(command.sender, response)
+            if not command.is_direct and kind in GROUP_RESPONSE_COMMANDS:
+                self.mesh.send_broadcast(response)
+            else:
+                self.mesh.send_direct(command.sender, response)
 
     def _handle_species_list_command(self, kind: str, argument: str | None) -> str:
         list_name, _, action = kind.partition("_")

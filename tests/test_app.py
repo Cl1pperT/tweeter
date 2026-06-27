@@ -331,6 +331,40 @@ class AppTests(unittest.TestCase):
         self.assertEqual(mesh.direct_messages[0][0], 1234)
         self.assertEqual(mesh.direct_messages[0][1], "BirdMesh is listening and ready!")
 
+    def test_group_information_is_public_but_help_and_direct_requests_are_private(self) -> None:
+        now = datetime.now(timezone.utc)
+        self._insert_detection(now - timedelta(minutes=2), "Turdus migratorius", "American Robin", 0.91)
+        self._insert_detection(now - timedelta(minutes=1), "Turdus migratorius", "American Robin", 0.88)
+        StateStore(self.state_path).save(AppState(last_rowid=2))
+        mesh = FakeMeshClient()
+        mesh._commands.extend(
+            [
+                CommandMessage(sender=1001, text="top bird today?"),
+                CommandMessage(sender=1002, text="birds help"),
+                CommandMessage(sender=1003, text="top bird today?", is_direct=True),
+            ]
+        )
+        app = BirdMeshApp(
+            self.config,
+            state_store=StateStore(self.state_path),
+            db=BirdNETDatabase(self.db_path, timezone.utc),
+            mesh=mesh,
+        )
+
+        app.run_once()
+        app.close()
+
+        self.assertEqual(
+            mesh.broadcasts,
+            ["Top bird today: American Robin with 2 visits."],
+        )
+        self.assertEqual(mesh.direct_messages[0][0], 1002)
+        self.assertTrue(mesh.direct_messages[0][1].startswith("Commands:"))
+        self.assertEqual(
+            mesh.direct_messages[1],
+            (1003, "Top bird today: American Robin with 2 visits."),
+        )
+
     def test_only_unrecognized_direct_messages_receive_help_prompt(self) -> None:
         mesh = FakeMeshClient()
         mesh._commands.extend(
@@ -362,7 +396,7 @@ class AppTests(unittest.TestCase):
             0.92,
         )
         mesh = FakeMeshClient()
-        mesh._commands.append(CommandMessage(sender=1234, text="Who's here?"))
+        mesh._commands.append(CommandMessage(sender=1234, text="Who's here?", is_direct=True))
         app = BirdMeshApp(
             self.config,
             state_store=StateStore(self.state_path),
@@ -382,7 +416,7 @@ class AppTests(unittest.TestCase):
         self._insert_detection(observed_at, "Turdus migratorius", "American Robin", 0.91)
         StateStore(self.state_path).save(AppState(last_rowid=1, last_detection_at=observed_at.isoformat()))
         mesh = FakeMeshClient()
-        mesh._commands.append(CommandMessage(sender=1234, text="who's here?"))
+        mesh._commands.append(CommandMessage(sender=1234, text="who's here?", is_direct=True))
         app = BirdMeshApp(
             self.config,
             state_store=StateStore(self.state_path),
@@ -414,7 +448,7 @@ class AppTests(unittest.TestCase):
             )
         )
         mesh = FakeMeshClient()
-        mesh._commands.append(CommandMessage(sender=1234, text="birds today?"))
+        mesh._commands.append(CommandMessage(sender=1234, text="birds today?", is_direct=True))
         app = BirdMeshApp(
             self.config,
             state_store=StateStore(self.state_path),
@@ -447,7 +481,7 @@ class AppTests(unittest.TestCase):
             "When was American Robin here?",
             "How busy is it?",
         ):
-            mesh._commands.append(CommandMessage(sender=1234, text=text))
+            mesh._commands.append(CommandMessage(sender=1234, text=text, is_direct=True))
         app = BirdMeshApp(
             self.config,
             state_store=StateStore(self.state_path),

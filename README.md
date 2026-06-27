@@ -40,7 +40,7 @@ Example `.env` for a Meshtastic radio connected over USB serial:
 BIRDMESH_MESHTASTIC_DEVICE=/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0
 BIRDMESH_CHANNEL_NAME=Bird Mesh
 BIRDMESH_BIRDNET_DB_PATH=/home/puffin2/BirdNET-Pi/scripts/birds.db
-BIRDMESH_POLL_SECONDS=15
+BIRDMESH_POLL_SECONDS=120
 BIRDMESH_SUMMARY_MINUTES=60
 BIRDMESH_COMMAND_PREFIX=bird
 BIRDMESH_TIMEZONE=America/Denver
@@ -179,7 +179,8 @@ when the service restarts successfully. Its defaults can be overridden with
 - Commands are case-insensitive and can be sent directly to the node or in the configured BirdMesh channel
 - Group commands from every other channel are ignored
 - Unrecognized direct messages receive a short help prompt; unrecognized channel messages are ignored
-- Replies are always sent directly back to the requesting node
+- Bird-information questions asked in the configured channel reply to that channel
+- Direct requests, help, status, and whitelist/blacklist management replies remain private
 - Informational command replies omit emojis to reduce airtime
 
 Routine bird broadcasts are sent with `wantAck=False` to keep airtime and power use low.
