@@ -109,20 +109,27 @@ class MeshtasticClient:
     def _on_receive_text(self, packet, interface) -> None:
         if self.interface is None or interface is not self.interface:
             return
-        if not self._is_direct_to_self(packet) and not self._is_configured_channel(packet):
+        is_direct = self._is_direct_to_self(packet)
+        if not is_direct and not self._is_configured_channel(packet):
             return
         text = self._extract_text(packet)
         if not text:
             return
         if self._is_from_self(packet):
             return
-        if command_kind(text, self.config.command_prefix) is None:
+        if not is_direct and command_kind(text, self.config.command_prefix) is None:
             return
         sender = packet.get("fromId") or packet.get("from")
         if sender is None:
             LOGGER.debug("Ignoring command packet without sender: %s", packet)
             return
-        self._commands.put(CommandMessage(sender=sender, text=text.strip()))
+        self._commands.put(
+            CommandMessage(
+                sender=sender,
+                text=text.strip(),
+                is_direct=is_direct,
+            )
+        )
 
     def _is_configured_channel(self, packet: dict[str, Any]) -> bool:
         if self.channel_index is None:

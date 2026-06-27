@@ -122,10 +122,45 @@ def format_activity(detections: int, species: int) -> str:
     return f"Last hour: {detections} {visit_word} from {species} species."
 
 
+def format_species_list(list_name: str, species_names: list[str]) -> str:
+    label = list_name.capitalize()
+    if not species_names:
+        return f"{label} is empty."
+    return _limit_text(f"{label}: {', '.join(species_names)}.")
+
+
+def format_species_list_update(
+    list_name: str,
+    species_name: str,
+    action: str,
+    changed: bool,
+    moved: bool = False,
+) -> str:
+    if action == "add":
+        if not changed and not moved:
+            return _limit_text(f"{species_name} is already on the {list_name}.")
+        suffix = " and removed it from the other list" if moved else ""
+        return _limit_text(f"Added {species_name} to the {list_name}{suffix}.")
+    if changed:
+        return _limit_text(f"Removed {species_name} from the {list_name}.")
+    return _limit_text(f"{species_name} is not on the {list_name}.")
+
+
+def format_species_list_usage(list_name: str) -> str:
+    return _limit_text(
+        f"Use: bird {list_name} add <species> or bird {list_name} remove <species>."
+    )
+
+
+def format_unrecognized_request() -> str:
+    return "Unrecognized request. Send 'bird help' for commands."
+
+
 def format_help() -> str:
     return _limit_text(
         "Commands: Who's here? | birds today? | top bird today? | any owls today? | "
-        "when was <species> here? | how busy is it? | bird status | bird help"
+        "when was <species> here? | busy | status | whitelist/blacklist "
+        "[add/remove <species>] | help"
     )
 
 

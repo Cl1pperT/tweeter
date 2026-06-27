@@ -15,11 +15,15 @@ from birdmesh.formatting import (
     format_last_seen,
     format_owls_today,
     format_species_not_seen,
+    format_species_list,
+    format_species_list_update,
+    format_species_list_usage,
     format_species_seen,
     format_status,
     format_summary,
     format_today,
     format_top_bird,
+    format_unrecognized_request,
 )
 from birdmesh.models import Detection
 from birdmesh.state import AppState
@@ -129,9 +133,29 @@ class FormattingTests(unittest.TestCase):
 
     def test_status_and_help_are_friendly(self) -> None:
         self.assertEqual(format_status(), "BirdMesh is listening and ready!")
+        self.assertEqual(
+            format_unrecognized_request(),
+            "Unrecognized request. Send 'bird help' for commands.",
+        )
         self.assertIn("Who's here?", format_help())
         self.assertIn("when was <species> here?", format_help())
+        self.assertIn("whitelist/blacklist", format_help())
         self.assertLessEqual(len(format_help()), MAX_TEXT_LENGTH)
+
+    def test_species_list_responses_are_compact(self) -> None:
+        self.assertEqual(format_species_list("whitelist", []), "Whitelist is empty.")
+        self.assertEqual(
+            format_species_list("blacklist", ["House Finch", "American Robin"]),
+            "Blacklist: House Finch, American Robin.",
+        )
+        self.assertEqual(
+            format_species_list_update("whitelist", "Snowy Owl", "add", changed=True),
+            "Added Snowy Owl to the whitelist.",
+        )
+        self.assertEqual(
+            format_species_list_usage("blacklist"),
+            "Use: bird blacklist add <species> or bird blacklist remove <species>.",
+        )
 
     def test_new_information_responses_are_compact_and_emoji_free(self) -> None:
         now = datetime(2026, 4, 4, 7, 0, tzinfo=timezone.utc)

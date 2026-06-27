@@ -22,3 +22,4 @@ class Detection:
 class CommandMessage:
     sender: int | str
     text: str
+    is_direct: bool = False

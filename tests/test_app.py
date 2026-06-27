@@ -177,6 +177,143 @@ class AppTests(unittest.TestCase):
         self.assertEqual(len(mesh.broadcasts), 1)
         self.assertEqual(mesh.broadcasts[0], "🦉 More bird visits: 🐦 American Robin ×2")
 
+    def test_blacklisted_repeats_are_excluded_from_summary(self) -> None:
+        now = datetime.now(timezone.utc)
+        self._insert_detection(now - timedelta(minutes=66), "Haemorhous mexicanus", "House Finch", 0.92)
+        self._insert_detection(now - timedelta(minutes=65), "Haemorhous mexicanus", "House Finch", 0.90)
+        self._insert_detection(now - timedelta(minutes=64), "Turdus migratorius", "American Robin", 0.91)
+        self._insert_detection(now - timedelta(minutes=63), "Turdus migratorius", "American Robin", 0.88)
+        StateStore(self.state_path).save(AppState(blacklisted_species=["House Finch"]))
+        mesh = FakeMeshClient()
+        app = BirdMeshApp(
+            self.config,
+            state_store=StateStore(self.state_path),
+            db=BirdNETDatabase(self.db_path, timezone.utc),
+            mesh=mesh,
+        )
+
+        app.run_once()
+        app.close()
+
+        self.assertEqual(
+            mesh.broadcasts,
+            [
+                "🐦 Look who's here: House Finch! (92%)",
+                "🐦 Look who's here: American Robin! (91%)",
+                "🦉 More bird visits: 🐦 American Robin ×1",
+            ],
+        )
+        saved_state = StateStore(self.state_path).load()
+        self.assertEqual(saved_state.pending_summary_total, 0)
+
+    def test_whitelisted_species_alert_on_every_detection(self) -> None:
+        now = datetime.now(timezone.utc)
+        self._insert_detection(now - timedelta(minutes=2), "Bubo virginianus", "Great Horned Owl", 0.93)
+        self._insert_detection(now - timedelta(minutes=1), "Bubo virginianus", "Great Horned Owl", 0.89)
+        StateStore(self.state_path).save(AppState(whitelisted_species=["Great Horned Owl"]))
+        mesh = FakeMeshClient()
+        app = BirdMeshApp(
+            self.config,
+            state_store=StateStore(self.state_path),
+            db=BirdNETDatabase(self.db_path, timezone.utc),
+            mesh=mesh,
+        )
+
+        app.run_once()
+        app.close()
+
+        self.assertEqual(
+            mesh.broadcasts,
+            [
+                "🦉 Look who's here: Great Horned Owl! (93%)",
+                "🦉 Look who's here: Great Horned Owl! (89%)",
+            ],
+        )
+        self.assertEqual(StateStore(self.state_path).load().pending_summary_total, 0)
+
+    def test_radio_commands_modify_and_persist_species_lists(self) -> None:
+        self._insert_detection(
+            datetime.now(timezone.utc) - timedelta(minutes=5),
+            "Haemorhous mexicanus",
+            "House Finch",
+            0.92,
+        )
+        mesh = FakeMeshClient()
+        for text in (
+            "bird whitelist add Haemorhous mexicanus",
+            "bird whitelist",
+            "bird blacklist add House Finch",
+            "bird whitelist",
+            "bird blacklist",
+        ):
+            mesh._commands.append(CommandMessage(sender=1234, text=text))
+        app = BirdMeshApp(
+            self.config,
+            state_store=StateStore(self.state_path),
+            db=BirdNETDatabase(self.db_path, timezone.utc),
+            mesh=mesh,
+        )
+
+        app.run_once()
+        app.close()
+
+        self.assertEqual(
+            [message for _, message in mesh.direct_messages],
+            [
+                "Added House Finch to the whitelist.",
+                "Whitelist: House Finch.",
+                "Added House Finch to the blacklist and removed it from the other list.",
+                "Whitelist is empty.",
+                "Blacklist: House Finch.",
+            ],
+        )
+        saved_state = StateStore(self.state_path).load()
+        self.assertEqual(saved_state.whitelisted_species, [])
+        self.assertEqual(saved_state.blacklisted_species, ["House Finch"])
+
+    def test_adding_blacklist_entry_removes_already_pending_summary_visits(self) -> None:
+        state = AppState(
+            pending_summary_total=2,
+            pending_summary_species={"House Finch": {"count": 2, "max_confidence": 0.9}},
+            pending_window_started_at=datetime.now(timezone.utc).isoformat(),
+        )
+        StateStore(self.state_path).save(state)
+        mesh = FakeMeshClient()
+        mesh._commands.append(CommandMessage(sender=1234, text="bird blacklist add House Finch"))
+        app = BirdMeshApp(
+            self.config,
+            state_store=StateStore(self.state_path),
+            db=BirdNETDatabase(self.db_path, timezone.utc),
+            mesh=mesh,
+        )
+
+        app.run_once()
+        app.close()
+
+        saved_state = StateStore(self.state_path).load()
+        self.assertEqual(saved_state.pending_summary_total, 0)
+        self.assertEqual(saved_state.pending_summary_species, {})
+        self.assertIsNone(saved_state.pending_window_started_at)
+
+    def test_radio_list_change_applies_before_new_detections_in_same_cycle(self) -> None:
+        now = datetime.now(timezone.utc)
+        self._insert_detection(now - timedelta(minutes=2), "Haemorhous mexicanus", "House Finch", 0.92)
+        self._insert_detection(now - timedelta(minutes=1), "Haemorhous mexicanus", "House Finch", 0.90)
+        mesh = FakeMeshClient()
+        mesh._commands.append(CommandMessage(sender=1234, text="bird blacklist add House Finch"))
+        app = BirdMeshApp(
+            self.config,
+            state_store=StateStore(self.state_path),
+            db=BirdNETDatabase(self.db_path, timezone.utc),
+            mesh=mesh,
+        )
+
+        app.run_once()
+        app.close()
+
+        self.assertEqual(mesh.broadcasts, ["🐦 Look who's here: House Finch! (92%)"])
+        self.assertEqual(StateStore(self.state_path).load().pending_summary_total, 0)
+
     def test_status_command_replies_directly(self) -> None:
         mesh = FakeMeshClient()
         mesh._commands.append(CommandMessage(sender=1234, text="bird status"))
@@ -193,6 +330,29 @@ class AppTests(unittest.TestCase):
         self.assertEqual(len(mesh.direct_messages), 1)
         self.assertEqual(mesh.direct_messages[0][0], 1234)
         self.assertEqual(mesh.direct_messages[0][1], "BirdMesh is listening and ready!")
+
+    def test_only_unrecognized_direct_messages_receive_help_prompt(self) -> None:
+        mesh = FakeMeshClient()
+        mesh._commands.extend(
+            [
+                CommandMessage(sender=1234, text="tell me a joke", is_direct=True),
+                CommandMessage(sender=5678, text="channel chatter"),
+            ]
+        )
+        app = BirdMeshApp(
+            self.config,
+            state_store=StateStore(self.state_path),
+            db=BirdNETDatabase(self.db_path, timezone.utc),
+            mesh=mesh,
+        )
+
+        app.run_once()
+        app.close()
+
+        self.assertEqual(
+            mesh.direct_messages,
+            [(1234, "Unrecognized request. Send 'bird help' for commands.")],
+        )
 
     def test_whos_here_replies_with_latest_bird_and_elapsed_minutes(self) -> None:
         self._insert_detection(
@@ -315,7 +475,13 @@ class AppTests(unittest.TestCase):
         client.interface = interface
         client.channel_index = 2
 
-        mixed_case_commands = ("wHo'S HeRe?", "BIRDS TODAY?", "BiRd HeLp", "BIRD STATUS")
+        mixed_case_commands = (
+            "wHo'S HeRe?",
+            "BIRDS TODAY?",
+            "BiRd HeLp",
+            "BIRD STATUS",
+            "BiRd BlAcKlIsT aDd HoUsE fInCh",
+        )
         for index, text in enumerate(mixed_case_commands, start=1):
             client._on_receive_text({"from": index, "channel": 2, "decoded": {"text": text}}, interface)
 
@@ -331,6 +497,7 @@ class AppTests(unittest.TestCase):
         client._on_receive_text({"from": 1, "channel": 1, "decoded": {"text": "bird status"}}, interface)
         client._on_receive_text({"from": 2, "decoded": {"text": "bird status"}}, interface)
         client._on_receive_text({"from": 3, "channel": 2, "decoded": {"text": "bird status"}}, interface)
+        client._on_receive_text({"from": 4, "channel": 2, "decoded": {"text": "hello everyone"}}, interface)
 
         commands = client.drain_commands()
         self.assertEqual([(command.sender, command.text) for command in commands], [(3, "bird status")])
@@ -353,12 +520,17 @@ class AppTests(unittest.TestCase):
             {"from": 3, "to": 100, "channel": 1, "decoded": {"text": "bird help"}},
             interface,
         )
+        client._on_receive_text(
+            {"from": 4, "to": 99, "channel": 1, "decoded": {"text": "hello bird radio"}},
+            interface,
+        )
 
         commands = client.drain_commands()
         self.assertEqual(
             [(command.sender, command.text) for command in commands],
-            [(1, "bird status"), (2, "birds today?")],
+            [(1, "bird status"), (2, "birds today?"), (4, "hello bird radio")],
         )
+        self.assertTrue(all(command.is_direct for command in commands))
 
     def test_serial_check_explains_service_port_conflict(self) -> None:
         config = replace(

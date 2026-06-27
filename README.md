@@ -13,6 +13,7 @@ It is designed for a Raspberry Pi Zero 2 W running on solar power:
 - Polls `~/BirdNET-Pi/scripts/birds.db` for new rows in `detections`
 - Sends an immediate mesh alert the first time a species appears each local day
 - Batches repeat detections into periodic summary messages
+- Supports radio-managed priority and suppression lists for individual species
 - Replies directly to friendly questions and commands received over the mesh
 - Persists cursor and alert state with atomic writes so restarts do not resend old detections
 
@@ -169,13 +170,25 @@ when the service restarts successfully. Its defaults can be overridden with
 - `when was <species> here?` reports the latest visit using either a common or scientific name
 - `how busy is it?` or `bird busy` reports visits and unique species from the last hour
 - `bird status` confirms BirdMesh is listening
-- `bird help` or `what can I ask?` lists the available questions
+- `bird whitelist` and `bird blacklist` show the current species lists
+- `bird whitelist add <species>` alerts on every detection of a priority species
+- `bird whitelist remove <species>` restores the default alert and summary behavior
+- `bird blacklist add <species>` keeps the first daily alert but suppresses later alerts and summaries
+- `bird blacklist remove <species>` restores the default alert and summary behavior
+- `bird help`, `birds help`, or `what can I ask?` lists the available questions
 - Commands are case-insensitive and can be sent directly to the node or in the configured BirdMesh channel
 - Group commands from every other channel are ignored
+- Unrecognized direct messages receive a short help prompt; unrecognized channel messages are ignored
 - Replies are always sent directly back to the requesting node
 - Informational command replies omit emojis to reduce airtime
 
 Routine bird broadcasts are sent with `wantAck=False` to keep airtime and power use low.
+
+Adding a species to either list automatically removes it from the other. Species
+names are case-insensitive and may use a common or scientific name already found
+in the BirdNET database. List changes are saved immediately and survive restarts.
+Adding a species to the blacklist also removes its visits from a summary that is
+already waiting to be sent.
 
 ## State
 
@@ -190,6 +203,7 @@ That file keeps:
 - First-of-day species already alerted
 - Pending summary aggregation
 - Daily counters used in `birds today?` replies
+- Whitelisted and blacklisted species
 
 ## Tests
 

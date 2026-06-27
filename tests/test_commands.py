@@ -22,6 +22,7 @@ class CommandTests(unittest.TestCase):
             "bird today?": "today",
             "bird status": "status",
             "bird help": "help",
+            "birds help": "help",
             "what can i ask?": "help",
             "top bird today?": "top_today",
             "bird top": "top_today",
@@ -45,6 +46,29 @@ class CommandTests(unittest.TestCase):
 
         self.assertEqual(common, ParsedCommand("species_last_seen", "Great Horned Owl"))
         self.assertEqual(scientific, ParsedCommand("species_last_seen", "Bubo virginianus"))
+
+    def test_species_list_commands_support_view_add_and_remove(self) -> None:
+        commands = {
+            "bird whitelist": ParsedCommand("whitelist"),
+            "bird white list show": ParsedCommand("whitelist"),
+            "bird whitelist add Great Horned Owl": ParsedCommand(
+                "whitelist_add",
+                "Great Horned Owl",
+            ),
+            "bird blacklist remove House Finch": ParsedCommand(
+                "blacklist_remove",
+                "House Finch",
+            ),
+            "bird black list delete American Robin": ParsedCommand(
+                "blacklist_remove",
+                "American Robin",
+            ),
+            "bird blacklist add": ParsedCommand("blacklist_add"),
+        }
+
+        for text, expected in commands.items():
+            with self.subTest(text=text):
+                self.assertEqual(parse_command(text, "bird"), expected)
 
 
 if __name__ == "__main__":

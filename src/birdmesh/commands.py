@@ -23,6 +23,7 @@ def supported_commands(command_prefix: str) -> dict[str, str]:
         f"{prefix} today": "today",
         f"{prefix} status": "status",
         f"{prefix} help": "help",
+        "birds help": "help",
         "what can i ask": "help",
         "top bird today": "top_today",
         f"{prefix} top": "top_today",
@@ -41,6 +42,22 @@ def parse_command(text: str, command_prefix: str) -> ParsedCommand | None:
         return ParsedCommand(kind)
 
     prefix = re.escape(command_prefix.strip())
+    list_match = re.fullmatch(
+        rf"{prefix}\s+(white\s*list|black\s*list)"
+        rf"(?:\s+(add|remove|delete|show|list)(?:\s+(.+?))?)?[?!.]*",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    if list_match:
+        list_name = list_match.group(1).replace(" ", "").lower()
+        action = (list_match.group(2) or "show").lower()
+        if action in {"show", "list"}:
+            return ParsedCommand(list_name)
+        if action == "delete":
+            action = "remove"
+        species_name = (list_match.group(3) or "").strip()
+        return ParsedCommand(f"{list_name}_{action}", species_name or None)
+
     match = re.fullmatch(
         rf"(?:(?:{prefix})\s+)?when\s+was\s+(.+?)\s+here[?!.]*",
         cleaned,
